@@ -3,13 +3,11 @@ services:
     name: n8n-dashboard-backend
     runtime: node
     plan: free
-    buildCommand: cd ../dashboard && npm install && npx vite build && mkdir -p ../server/public && cp -r dist/. ../server/public/ && cd ../server && npm install
-    startCommand: npm start
+    buildCommand: bash build.sh
+    startCommand: node server/src/index.js
     envVars:
-      - key: PORT
-        value: 3001
       - key: FRONTEND_URL
-        sync: false
+        value: "*"
       - key: GITHUB_TOKEN
         sync: false
       - key: GITHUB_OWNER
