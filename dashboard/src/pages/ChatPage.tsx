@@ -4,12 +4,30 @@ import { n8n as n8nApi } from '../api/client';
 import { Build } from '../types';
 import { useNavigate } from 'react-router-dom';
 
+interface BuildStep {
+  pageId:  string;
+  name:    string;
+  type:    'react' | 'wordpress' | 'unknown';
+  ts:      Date;
+}
+
 interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'system' | 'complete';
+  role: 'user' | 'assistant' | 'system' | 'complete' | 'progress';
   text: string;
   ts: Date;
-  meta?: { pageCount: number; projectName: string };
+  meta?: { pageCount?: number; projectName?: string; steps?: BuildStep[] };
+}
+
+function cleanPageName(raw: string): string {
+  const base = raw.split(/[/\\]/).pop()?.replace(/\.md$/i, '') ?? raw;
+  return base.replace(/^\d+_/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function detectType(projectName: string): 'react' | 'wordpress' | 'unknown' {
+  if (projectName.startsWith('wp_'))  return 'wordpress';
+  if (projectName.startsWith('web_')) return 'react';
+  return 'unknown';
 }
 
 interface Props {
@@ -93,10 +111,16 @@ export default function ChatPage({ builds }: Props) {
     const pages    = builtPagesRef.current;
     const count    = pages.length;
     const projName = pages[0]?.projectName ?? 'your project';
-    setMessages(prev => [...prev, {
-      id: `complete-${Date.now()}`, role: 'complete', text: '', ts: new Date(),
-      meta: { pageCount: count, projectName: projName },
-    }]);
+    // Mark progress card as done, then add completion card
+    setMessages(prev => {
+      const updated = prev.map(m =>
+        m.id === 'build-progress' ? { ...m, id: 'build-progress-done' } : m
+      );
+      return [...updated, {
+        id: `complete-${Date.now()}`, role: 'complete' as const, text: '', ts: new Date(),
+        meta: { pageCount: count, projectName: projName },
+      }];
+    });
     builtPagesRef.current = [];
   }, []);
 
@@ -109,11 +133,26 @@ export default function ChatPage({ builds }: Props) {
     if (builds.length > prevBuildsCount.current && building) {
       const newest = builds[0];
       builtPagesRef.current = [newest, ...builtPagesRef.current];
-      setMessages(prev => [...prev, {
-        id: `build-${newest.id}`, role: 'system',
-        text: `✅ **${newest.pageName}** generated — ${newest.projectName}`,
-        ts: new Date(),
-      }]);
+
+      const step: BuildStep = {
+        pageId: newest.pageId ?? '?',
+        name:   cleanPageName(newest.pageName ?? newest.filePath ?? 'Page'),
+        type:   detectType(newest.projectName ?? ''),
+        ts:     new Date(),
+      };
+
+      // Update the single progress card instead of adding new messages
+      setMessages(prev => {
+        const idx = prev.findIndex(m => m.id === 'build-progress');
+        if (idx === -1) return prev;
+        const card = prev[idx];
+        return [
+          ...prev.slice(0, idx),
+          { ...card, meta: { ...card.meta, steps: [...(card.meta?.steps ?? []), step] } },
+          ...prev.slice(idx + 1),
+        ];
+      });
+
       resetCompletionTimer();
     }
     prevBuildsCount.current = builds.length;
@@ -174,7 +213,16 @@ export default function ChatPage({ builds }: Props) {
       if (detectBuildStart(reply)) {
         const cleanReply = cleanBuildTag(reply);
         if (cleanReply) addMessage('assistant', cleanReply);
-        addMessage('system', '🚀 **Build pipeline launched!** Pages are being generated now — each one will appear below as it completes.');
+        // Extract project name from reply for the progress card header
+        const projMatch = cleanReply.match(/project(?:\s+name)?[:\s]+["']?([A-Za-z0-9 _-]+)/i);
+        const projLabel = projMatch?.[1]?.trim() ?? 'your project';
+        setMessages(prev => [...prev, {
+          id:   'build-progress',
+          role: 'progress',
+          text: projLabel,
+          ts:   new Date(),
+          meta: { projectName: projLabel, steps: [] },
+        }]);
         setBuilding(true);
         builtPagesRef.current = [];
         resetCompletionTimer();
@@ -292,32 +340,6 @@ export default function ChatPage({ builds }: Props) {
         </button>
       </div>
 
-      {/* Building status bar */}
-      {building && (
-        <div style={{
-          background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.2)',
-          borderRadius: 'var(--radius-md)', padding: '0.625rem 1rem',
-          margin: '0.75rem 1.5rem 0',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', fontSize: '0.8rem', color: 'var(--accent-blue)' }}>
-            <span className="spinner" style={{ color: 'var(--accent-blue)', width: '14px', height: '14px', borderWidth: '2px' }} />
-            <strong>Building…</strong>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              {builds.length} page{builds.length !== 1 ? 's' : ''} generated so far
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/preview')}>
-              <Eye size={12} /> Preview
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/')}>
-              <LayoutDashboard size={12} /> Overview
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
@@ -430,6 +452,100 @@ function Avatar({ isUser }: { isUser: boolean }) {
 
 function ChatBubble({ message, navigate }: { message: Message; navigate: ReturnType<typeof useNavigate> }) {
   const isUser = message.role === 'user';
+
+  // ── Build progress card ──
+  if (message.role === 'progress' || message.id === 'build-progress-done') {
+    const steps    = message.meta?.steps ?? [];
+    const isDone   = message.id === 'build-progress-done';
+    const typeColor = (t: BuildStep['type']) =>
+      t === 'react' ? 'var(--accent-blue)' : t === 'wordpress' ? 'var(--accent-purple)' : 'var(--text-muted)';
+    const typeLabel = (t: BuildStep['type']) =>
+      t === 'react' ? 'React' : t === 'wordpress' ? 'WordPress' : '—';
+
+    return (
+      <div style={{
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)', overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{
+          background: 'rgba(96,165,250,0.08)', borderBottom: '1px solid rgba(96,165,250,0.15)',
+          padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.625rem',
+        }}>
+          {isDone
+            ? <CheckCircle2 size={16} color="var(--accent-teal)" />
+            : <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2, color: 'var(--accent-blue)', flexShrink: 0 }} />
+          }
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+              {isDone ? 'Pipeline complete' : 'Pipeline running…'}
+            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '1px' }}>
+              {steps.length} page{steps.length !== 1 ? 's' : ''} generated
+              {!isDone && ' — more coming…'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }} onClick={() => navigate('/')}>
+              <LayoutDashboard size={11} /> Overview
+            </button>
+          </div>
+        </div>
+
+        {/* Steps list */}
+        <div style={{ padding: '0.625rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          {steps.map((s, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: '0.625rem',
+              padding: '0.375rem 0.625rem',
+              background: 'var(--bg-surface)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+            }}>
+              <CheckCircle2 size={13} color="var(--accent-teal)" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '1.5rem', fontFamily: 'var(--font-mono)' }}>
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', flex: 1, fontWeight: 500 }}>
+                {s.name}
+              </span>
+              <span style={{
+                fontSize: '0.65rem', fontWeight: 700, color: typeColor(s.type),
+                background: `${typeColor(s.type)}18`,
+                border: `1px solid ${typeColor(s.type)}30`,
+                borderRadius: '999px', padding: '0.1rem 0.5rem',
+              }}>
+                {typeLabel(s.type)}
+              </span>
+            </div>
+          ))}
+
+          {/* Pulsing "next up" row while still building */}
+          {!isDone && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.625rem',
+              padding: '0.375rem 0.625rem',
+              background: 'rgba(96,165,250,0.04)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px dashed rgba(96,165,250,0.25)',
+            }}>
+              {[0,1,2].map(i => (
+                <span key={i} style={{
+                  width: 5, height: 5, borderRadius: '50%',
+                  background: 'var(--accent-blue)',
+                  animation: `dotPulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                  display: 'inline-block', flexShrink: 0,
+                }} />
+              ))}
+              <span style={{ fontSize: '0.775rem', color: 'var(--accent-blue)', fontStyle: 'italic' }}>
+                AI is generating the next page…
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (message.role === 'complete') {
     const { pageCount = 0, projectName = 'your project' } = message.meta ?? {};
