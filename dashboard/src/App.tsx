@@ -76,9 +76,7 @@ function AppInner() {
                   <Route path="/wordpress" element={<WordPressPage latestBuild={state.latestBuild} builds={state.builds} onPipelineStep={handlePipelineStep} />} />
                   <Route path="/deploy"   element={<DeployPage pipeline={state.pipeline} deployLogs={deployLogs} onClearLogs={clearDeployLogs} />} />
                   <Route path="/settings" element={<SettingsPage />} />
-                  {user?.role === 'admin' && (
-                    <Route path="/admin" element={<AdminPage />} />
-                  )}
+                  <Route path="/admin"    element={user?.role === 'admin' ? <AdminPage /> : <DashboardPage state={state} />} />
                 </Routes>
               </div>
             </div>

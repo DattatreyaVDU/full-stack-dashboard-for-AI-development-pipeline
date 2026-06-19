@@ -1,11 +1,13 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../store/useAuth';
+import { useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Zap, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, loading } = useAuth();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const [params]  = useSearchParams();
 
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
@@ -17,7 +19,8 @@ export default function LoginPage() {
     setError('');
     try {
       await login(email.trim(), password);
-      navigate('/');
+      const from = params.get('from') ?? '/';
+      navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message);
     }
