@@ -12,8 +12,9 @@ const wordpressRoutes  = require('./routes/wordpress');
 const deployRoutes     = require('./routes/deploy');
 const n8nRoutes        = require('./routes/n8n');
 const downloadRoutes   = require('./routes/download');
-const authRoutes       = require('./routes/auth');
+const authRoutes        = require('./routes/auth');
 const githubOauthRoutes = require('./routes/github-oauth');
+const adminRoutes       = require('./routes/admin');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -40,6 +41,7 @@ app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 // Routes
 app.use('/api/auth',          authRoutes);
 app.use('/api/auth/github',   githubOauthRoutes);
+app.use('/api/admin',         adminRoutes);
 app.use('/api/webhook',       webhookRoutes);
 app.use('/api/github',        githubRoutes);
 app.use('/api/wordpress',     wordpressRoutes);

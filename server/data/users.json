@@ -1,0 +1,12 @@
+[
+  {
+    "id": "62d8adf7-b3a5-41d3-bd8f-bf7a63813826",
+    "name": "Dattatreya",
+    "email": "sreer7797@gmail.com",
+    "passwordHash": "$2b$10$4L1h8gRkP4koRkAmrJhS0Ou2iHsvj6KmBoKjHXAHuwNTK2kDMbsAa",
+    "role": "admin",
+    "webhookToken": "33edab84aed84f9cbcb94e5d4b3f1d2a",
+    "github": null,
+    "createdAt": "2026-06-19T12:40:53.904Z"
+  }
+]

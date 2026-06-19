@@ -41,6 +41,7 @@ async function createUser({ name, email, password }) {
     name,
     email,
     passwordHash: hash,
+    role:         users.length === 0 ? 'admin' : 'user', // first user is admin
     webhookToken: uuidv4().replace(/-/g, ''),
     github:       null,  // { accessToken, username, selectedRepo }
     createdAt:    new Date().toISOString(),
@@ -48,6 +49,18 @@ async function createUser({ name, email, password }) {
   users.push(user);
   saveUsers(users);
   return user;
+}
+
+function resetWebhookToken(id) {
+  return updateUser(id, { webhookToken: uuidv4().replace(/-/g, '') });
+}
+
+function deleteUser(id) {
+  const users = loadUsers();
+  const idx   = users.findIndex(u => u.id === id);
+  if (idx === -1) throw new Error('User not found');
+  users.splice(idx, 1);
+  saveUsers(users);
 }
 
 async function verifyPassword(email, password) {
@@ -72,4 +85,4 @@ function safeUser(user) {
   return safe;
 }
 
-module.exports = { findByEmail, findById, findByWebhookToken, createUser, verifyPassword, updateUser, safeUser };
+module.exports = { loadUsers, findByEmail, findById, findByWebhookToken, createUser, verifyPassword, updateUser, resetWebhookToken, deleteUser, safeUser };

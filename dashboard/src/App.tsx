@@ -16,6 +16,7 @@ import SettingsPage   from './pages/SettingsPage';
 import ChatPage       from './pages/ChatPage';
 import LoginPage      from './pages/LoginPage';
 import RegisterPage   from './pages/RegisterPage';
+import AdminPage      from './pages/AdminPage';
 import AuthGuard      from './components/AuthGuard';
 import { useAuth }    from './store/useAuth';
 
@@ -75,6 +76,9 @@ function AppInner() {
                   <Route path="/wordpress" element={<WordPressPage latestBuild={state.latestBuild} builds={state.builds} onPipelineStep={handlePipelineStep} />} />
                   <Route path="/deploy"   element={<DeployPage pipeline={state.pipeline} deployLogs={deployLogs} onClearLogs={clearDeployLogs} />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  {user?.role === 'admin' && (
+                    <Route path="/admin" element={<AdminPage />} />
+                  )}
                 </Routes>
               </div>
             </div>

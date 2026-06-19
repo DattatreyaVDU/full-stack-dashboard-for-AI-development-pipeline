@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Eye, Github, Layers, Rocket,
-  Settings, Zap, Activity, MessageSquare,
+  Settings, Zap, Activity, MessageSquare, ShieldCheck,
 } from 'lucide-react';
+import { useAuth } from '../../store/useAuth';
 
 interface Props {
   serverOnline: boolean;
@@ -19,6 +20,7 @@ const navItems = [
 ];
 
 export default function Sidebar({ serverOnline, buildsCount }: Props) {
+  const { user } = useAuth();
   return (
     <aside className="sidebar">
       {/* Logo */}
@@ -50,13 +52,19 @@ export default function Sidebar({ serverOnline, buildsCount }: Props) {
 
       <div className="sidebar-section" style={{ marginTop: '0.25rem' }}>
         <div className="sidebar-section-label">System</div>
-        <NavLink
-          to="/settings"
-          className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-        >
+        <NavLink to="/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <Settings className="nav-icon" />
           Settings
         </NavLink>
+        {user?.role === 'admin' && (
+          <NavLink to="/admin" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+            <ShieldCheck className="nav-icon" />
+            Admin
+            <span style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 700, background: 'rgba(234,88,12,0.15)', color: 'var(--accent-orange)', padding: '0.1rem 0.4rem', borderRadius: '999px' }}>
+              ADMIN
+            </span>
+          </NavLink>
+        )}
       </div>
 
       {/* Status footer */}
