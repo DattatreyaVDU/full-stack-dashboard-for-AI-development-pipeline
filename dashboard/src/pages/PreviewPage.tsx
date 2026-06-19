@@ -68,14 +68,15 @@ export default function PreviewPage({ latestBuild, builds }: Props) {
           gridTemplateColumns: view === 'split' ? '1fr 1fr' : '1fr',
           gap: '1.25rem',
           height: 'calc(100vh - 195px)',
+          overflow: 'hidden',
         }}>
           {/* ── Live Preview ── */}
           {view !== 'code' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minHeight: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
               <div className="card-title" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>
                 <Eye size={12} /> Live Preview
               </div>
-              <div style={{ flex: 1, minHeight: 0 }}>
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 {getPreviewHtml(build.content) ? (
                   <LivePreview
                     htmlContent={getPreviewHtml(build.content)!}
@@ -95,11 +96,11 @@ export default function PreviewPage({ latestBuild, builds }: Props) {
 
           {/* ── Code Panel ── */}
           {view !== 'preview' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minHeight: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
               <div className="card-title" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>
                 <Code2 size={12} /> Generated Content
               </div>
-              <div style={{ flex: 1, minHeight: 0 }}>
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 {build.content ? (
                   <CodeViewer
                     content={build.content}

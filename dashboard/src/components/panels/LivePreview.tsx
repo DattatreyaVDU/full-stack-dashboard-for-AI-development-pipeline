@@ -33,7 +33,7 @@ export default function LivePreview({ url, htmlContent }: Props) {
   const isEmpty = !currentUrl && !htmlContent;
 
   return (
-    <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-sidebar)' }}>
+    <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-sidebar)', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Browser chrome */}
       <div className="preview-toolbar">
         <div className="preview-dots">
@@ -85,16 +85,21 @@ export default function LivePreview({ url, htmlContent }: Props) {
         display: 'flex',
         justifyContent: 'center',
         padding: mode !== 'desktop' ? '1rem' : '0',
-        minHeight: '480px',
+        flex: 1,
+        minHeight: 0,
+        overflow: 'hidden',
       }}>
         <div style={{
           width: viewWidths[mode],
+          maxWidth: '100%',
           transition: 'width 0.3s ease',
           background: '#fff',
           position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
         }}>
           {isEmpty ? (
-            <div className="empty-state" style={{ height: '480px', background: 'var(--bg-base)' }}>
+            <div className="empty-state" style={{ flex: 1, background: 'var(--bg-base)' }}>
               <Monitor size={40} className="empty-state-icon" />
               <div className="empty-state-title">No preview yet</div>
               <div className="empty-state-text">
@@ -106,14 +111,14 @@ export default function LivePreview({ url, htmlContent }: Props) {
               ref={iframeRef}
               srcDoc={htmlContent}
               sandbox="allow-scripts allow-same-origin"
-              style={{ width: '100%', height: '480px', border: 'none' }}
+              style={{ width: '100%', flex: 1, border: 'none', minHeight: 0 }}
               title="Live preview"
             />
           ) : (
             <iframe
               ref={iframeRef}
               src={currentUrl}
-              style={{ width: '100%', height: '480px', border: 'none' }}
+              style={{ width: '100%', flex: 1, border: 'none', minHeight: 0 }}
               title="Live preview"
             />
           )}

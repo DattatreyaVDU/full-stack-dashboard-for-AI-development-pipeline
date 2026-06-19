@@ -22,8 +22,8 @@ export default function CodeViewer({ content, language = 'markdown', fileName, m
   const lineCount = content.split('\n').length;
 
   return (
-    <div className="code-panel">
-      <div className="code-panel-header">
+    <div className="code-panel" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="code-panel-header" style={{ flexShrink: 0 }}>
         <div className="flex items-center gap-2">
           <FileCode2 size={13} color="var(--text-muted)" />
           {fileName && (
@@ -39,7 +39,7 @@ export default function CodeViewer({ content, language = 'markdown', fileName, m
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <div className="code-scroll" style={{ maxHeight }}>
+      <div className="code-scroll" style={{ maxHeight, flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'auto' }}>
         <SyntaxHighlighter
           language={language}
           style={atomOneDark}
