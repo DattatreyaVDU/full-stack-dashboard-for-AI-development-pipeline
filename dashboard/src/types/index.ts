@@ -24,9 +24,11 @@ export interface Pipeline {
 }
 
 export interface DashboardState {
-  latestBuild: Build | null;
+  latestBuild:   Build | null;
+  latestWpBuild: Build | null;
   pipeline: Pipeline;
-  builds: Build[];
+  builds:   Build[];   // Web pipeline builds
+  wpBuilds: Build[];   // WordPress pipeline builds
 }
 
 export interface GitHubStatus {

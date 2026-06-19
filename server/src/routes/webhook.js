@@ -229,6 +229,73 @@ router.post('/n8n', (req, res) => {
   res.status(200).json({ success: true, buildId: build.id });
 });
 
+// ─── POST /api/webhook/wp ─────────────────────────────────────────────────────
+// Receives WordPress pipeline builds separately from web builds.
+router.post('/wp', (req, res) => {
+  const io          = req.app.get('io');
+  const updateState = req.app.get('updateState');
+  const state       = req.app.get('state');
+  const payload     = req.body;
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return res.status(400).json({ success: false, error: 'Payload must be a JSON object.' });
+  }
+
+  const hasNewFormat = 'projectName' in payload;
+  const hasOldFormat = 'project_name' in payload || 'page_name' in payload;
+  if (!hasNewFormat && !hasOldFormat) {
+    return res.status(400).json({ success: false, error: 'Missing projectName or project_name.' });
+  }
+
+  let build;
+  try {
+    build = normalizeBuild(payload);
+    build.source = 'wordpress'; // tag so frontend can distinguish
+  } catch (err) {
+    return res.status(422).json({ success: false, error: `Normalisation failed: ${err.message}` });
+  }
+
+  const localFilePath = saveFileToDisk(build);
+  if (localFilePath) build.localFilePath = localFilePath;
+
+  // Push to GitHub if userToken provided
+  const userToken = req.query.userToken || req.body.userToken;
+  if (userToken) {
+    const user = findByWebhookToken(userToken);
+    if (user) {
+      pushToGitHub(user, build).then(ghUrl => {
+        if (ghUrl) { build.githubUrl = ghUrl; io.emit('wpbuild:update', build); }
+      });
+    }
+  }
+
+  // Store in wpBuilds (separate from web builds)
+  state.wpBuilds = state.wpBuilds || [];
+  state.wpBuilds.unshift(build);
+  if (state.wpBuilds.length > 50) state.wpBuilds.pop();
+
+  updateState({ latestWpBuild: build });
+
+  io.emit('wpbuild:update', build);
+  io.emit('pipeline:step', { step: 'wordpress', status: 'done' });
+
+  console.log(`[WP Webhook] ${build.projectName} | ${build.pageName} | id=${build.id}`);
+  res.status(200).json({ success: true, buildId: build.id });
+});
+
+// ─── GET /api/webhook/wp ──────────────────────────────────────────────────────
+router.get('/wp', (req, res) => {
+  const state = req.app.get('state');
+  res.json({
+    status:     'ready',
+    method:     'This endpoint only accepts POST requests from the WP n8n pipeline.',
+    wpBuilds:   (state.wpBuilds || []).length,
+    latestWpBuild: state.latestWpBuild
+      ? { projectName: state.latestWpBuild.projectName, timestamp: state.latestWpBuild.timestamp }
+      : null,
+  });
+});
+
 // ─── GET /api/webhook/n8n ────────────────────────────────────────────────────
 // Health-check so hitting the URL in a browser gives a useful response.
 router.get('/n8n', (req, res) => {

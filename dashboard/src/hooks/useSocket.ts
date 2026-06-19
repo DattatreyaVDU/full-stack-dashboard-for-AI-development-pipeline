@@ -5,6 +5,7 @@ import { DashboardState, Build, DeployLog } from '../types';
 interface SocketHandlers {
   onStateUpdate?: (state: DashboardState) => void;
   onWebhookReceived?: (build: Build) => void;
+  onWpBuildReceived?: (build: Build) => void;
   onPipelineStep?: (data: { step: string; status: string; error?: string }) => void;
   onDeployLog?: (log: DeployLog) => void;
   onVSCodeOpen?: (data: { filePath: string }) => void;
@@ -37,6 +38,11 @@ export function useSocket(handlers: SocketHandlers) {
     // 'webhook:received' kept for backward compatibility
     socketRef.current.on('webhook:received', (build: Build) => {
       handlersRef.current.onWebhookReceived?.(build);
+    });
+
+    // WordPress pipeline builds (from /api/webhook/wp)
+    socketRef.current.on('wpbuild:update', (build: Build) => {
+      handlersRef.current.onWpBuildReceived?.(build);
     });
 
     socketRef.current.on('pipeline:step', (data: { step: string; status: string; error?: string }) => {

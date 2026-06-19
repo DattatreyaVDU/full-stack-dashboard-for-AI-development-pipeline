@@ -55,16 +55,14 @@ app.get('/api/health', (req, res) => {
 
 // In-memory state (replace with DB for production)
 let dashboardState = {
-  latestBuild: null,
+  latestBuild:   null,
+  latestWpBuild: null,
   pipeline: {
-    n8n: 'idle',
-    webhook: 'idle',
-    github: 'idle',
-    vscode: 'idle',
-    wordpress: 'idle',
-    deploy: 'idle',
+    n8n: 'idle', webhook: 'idle', github: 'idle',
+    vscode: 'idle', wordpress: 'idle', deploy: 'idle',
   },
-  builds: [],
+  builds:   [],   // Web pipeline builds
+  wpBuilds: [],   // WordPress pipeline builds
 };
 
 app.get('/api/state', (req, res) => res.json(dashboardState));
@@ -77,6 +75,12 @@ app.post('/api/state/reset', (req, res) => {
   io.emit('state:update', dashboardState);
   res.json({ success: true });
 });
+
+// WP-specific state endpoint
+app.get('/api/state/wp', (req, res) => res.json({
+  latestWpBuild: dashboardState.latestWpBuild,
+  wpBuilds:      dashboardState.wpBuilds,
+}));
 
 // Expose state mutator to routes
 app.set('state', dashboardState);

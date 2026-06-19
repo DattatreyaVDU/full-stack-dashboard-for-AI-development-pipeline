@@ -1,25 +1,17 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Eye, Github, Layers, Rocket,
-  Settings, Zap, Activity, MessageSquare, ShieldCheck, UserCircle,
+  Settings, Zap, Activity, MessageSquare, ShieldCheck, UserCircle, Code2,
 } from 'lucide-react';
 import { useAuth } from '../../store/useAuth';
 
 interface Props {
   serverOnline: boolean;
   buildsCount: number;
+  wpBuildsCount: number;
 }
 
-const navItems = [
-  { to: '/chat',      icon: MessageSquare,  label: 'New Project' },
-  { to: '/',          icon: LayoutDashboard, label: 'Overview' },
-  { to: '/preview',   icon: Eye,             label: 'Live Preview' },
-  { to: '/github',    icon: Github,          label: 'GitHub' },
-  { to: '/wordpress', icon: Layers,          label: 'WordPress' },
-  { to: '/deploy',    icon: Rocket,          label: 'Deploy' },
-];
-
-export default function Sidebar({ serverOnline, buildsCount }: Props) {
+export default function Sidebar({ serverOnline, buildsCount, wpBuildsCount }: Props) {
   const { user } = useAuth();
   return (
     <aside className="sidebar">
@@ -34,31 +26,56 @@ export default function Sidebar({ serverOnline, buildsCount }: Props) {
         </div>
       </div>
 
-      {/* Main nav */}
+      {/* ── Web Pipeline ── */}
       <div className="sidebar-section">
-        <div className="sidebar-section-label">Workspace</div>
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-          >
-            <Icon className="nav-icon" />
-            {label}
-          </NavLink>
-        ))}
+        <div className="sidebar-section-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <Code2 size={9} style={{ opacity: 0.6 }} /> Web Pipeline
+          {buildsCount > 0 && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 700, background: 'rgba(13,148,136,0.15)', color: 'var(--accent-teal)', padding: '0.1rem 0.4rem', borderRadius: '999px' }}>
+              {buildsCount}
+            </span>
+          )}
+        </div>
+        <NavLink to="/chat" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <MessageSquare className="nav-icon" /> New Project
+        </NavLink>
+        <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <LayoutDashboard className="nav-icon" /> Overview
+        </NavLink>
+        <NavLink to="/preview" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Eye className="nav-icon" /> Live Preview
+        </NavLink>
+        <NavLink to="/github" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Github className="nav-icon" /> GitHub
+        </NavLink>
+        <NavLink to="/deploy" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Rocket className="nav-icon" /> Deploy
+        </NavLink>
       </div>
 
+      {/* ── WordPress Pipeline ── */}
+      <div className="sidebar-section" style={{ marginTop: '0.25rem' }}>
+        <div className="sidebar-section-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <Layers size={9} style={{ opacity: 0.6 }} /> WordPress Pipeline
+          {wpBuildsCount > 0 && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 700, background: 'rgba(99,102,241,0.15)', color: '#818cf8', padding: '0.1rem 0.4rem', borderRadius: '999px' }}>
+              {wpBuildsCount}
+            </span>
+          )}
+        </div>
+        <NavLink to="/wordpress" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Layers className="nav-icon" /> WP Projects
+        </NavLink>
+      </div>
+
+      {/* ── System ── */}
       <div className="sidebar-section" style={{ marginTop: '0.25rem' }}>
         <div className="sidebar-section-label">System</div>
         <NavLink to="/profile" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <UserCircle className="nav-icon" />
-          My Profile
+          <UserCircle className="nav-icon" /> My Profile
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <Settings className="nav-icon" />
-          Settings
+          <Settings className="nav-icon" /> Settings
         </NavLink>
         {user?.role === 'admin' && (
           <NavLink to="/admin" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
@@ -79,7 +96,7 @@ export default function Sidebar({ serverOnline, buildsCount }: Props) {
         </div>
         <div className="status-row" style={{ marginTop: '4px' }}>
           <Activity size={10} style={{ marginRight: '6px', opacity: 0.5 }} />
-          {buildsCount} build{buildsCount !== 1 ? 's' : ''} received
+          Web: {buildsCount} · WP: {wpBuildsCount}
         </div>
       </div>
     </aside>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Download, Package, Rocket, CheckCircle, FileCode, Globe } from 'lucide-react';
+import { Layers, Download, Package, Rocket, CheckCircle, FileCode, Globe, Copy, Check, Zap } from 'lucide-react';
 import { wordpress as wpApi } from '../api/client';
 import { useAuth } from '../store/useAuth';
 import { Build } from '../types';
@@ -19,6 +19,17 @@ export default function WordPressPage({ latestBuild, builds, onPipelineStep }: P
   const [zipBlob, setZipBlob]       = useState<Blob | null>(null);
   const [showDeploy, setShowDeploy] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string>('');
+  const [copied, setCopied]         = useState(false);
+
+  const wpWebhookUrl = user?.webhookToken
+    ? `${window.location.origin}/api/webhook/wp?userToken=${user.webhookToken}`
+    : `${window.location.origin}/api/webhook/wp`;
+
+  const copyWpUrl = () => {
+    navigator.clipboard.writeText(wpWebhookUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Unique project names from all builds
   const projects = [...new Set(builds.map(b => b.projectName).filter(Boolean))];
@@ -65,18 +76,52 @@ export default function WordPressPage({ latestBuild, builds, onPipelineStep }: P
   };
 
   const themeFiles = [
-    { file: 'style.css',          desc: 'Theme header + base styles' },
-    { file: 'functions.php',      desc: 'Enqueue scripts, register menus' },
-    { file: 'index.php',          desc: 'Main loop template' },
-    { file: 'header.php',         desc: 'Site header & navigation' },
-    { file: 'footer.php',         desc: 'Site footer' },
-    { file: 'page.php',           desc: 'Default page template' },
-    { file: 'template-[page].php', desc: `One per page · ${pagesInProject.length} total` },
-    { file: 'assets/js/main.js',  desc: 'Main JavaScript bundle' },
+    { file: 'style.css',       desc: 'Theme header + base styles' },
+    { file: 'functions.php',   desc: 'Enqueue scripts, register menus' },
+    { file: 'index.php',       desc: 'Main loop template' },
+    { file: 'header.php',      desc: 'Site header & navigation' },
+    { file: 'footer.php',      desc: 'Site footer' },
+    { file: 'page.php',        desc: 'Default page template' },
+    { file: 'single.php',      desc: 'Single post template' },
+    { file: 'archive.php',     desc: 'Archive / category template' },
+    { file: '404.php',         desc: 'Not found page' },
+    { file: 'search.php',      desc: 'Search results template' },
+    { file: 'page-[slug].php', desc: `Feature pages · ${pagesInProject.length} total` },
+    { file: 'assets/js/main.js', desc: 'Scroll-reveal + main JS' },
   ];
 
   return (
     <div className="page-body">
+
+      {/* ── WP Webhook URL Banner ── */}
+      <div className="card" style={{ marginBottom: '1.25rem', padding: '1rem 1.25rem', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.625rem' }}>
+          <Zap size={13} color="#818cf8" />
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#818cf8' }}>WordPress Pipeline Webhook</span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+            Paste this in your <strong>WP HTTP Request</strong> node in n8n
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <code style={{ flex: 1, fontSize: '0.75rem', color: '#818cf8', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 0.75rem', wordBreak: 'break-all' }}>
+            {wpWebhookUrl}
+          </code>
+          <button className="btn btn-ghost btn-sm" onClick={copyWpUrl}>
+            {copied ? <Check size={13} color="var(--accent-teal)" /> : <Copy size={13} />}
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginTop: '0.625rem' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+            📥 <strong style={{ color: 'var(--text-secondary)' }}>{builds.length}</strong> WP build{builds.length !== 1 ? 's' : ''} received
+          </span>
+          {latestBuild && (
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Last: <strong style={{ color: 'var(--text-secondary)' }}>{latestBuild.projectName}</strong> · {new Date(latestBuild.timestamp).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* ── Project selector ── */}
       <div className="card" style={{ marginBottom: '1.25rem', padding: '1.25rem 1.5rem' }}>

@@ -2,12 +2,14 @@ import { useState, useCallback } from 'react';
 import { DashboardState, Build, Pipeline, DeployLog } from '../types';
 
 const initialState: DashboardState = {
-  latestBuild: null,
+  latestBuild:   null,
+  latestWpBuild: null,
   pipeline: {
     n8n: 'idle', webhook: 'idle', github: 'idle',
     vscode: 'idle', wordpress: 'idle', deploy: 'idle',
   },
-  builds: [],
+  builds:   [],
+  wpBuilds: [],
 };
 
 export function useStore() {
@@ -25,6 +27,14 @@ export function useStore() {
       ...prev,
       latestBuild: build,
       builds: [build, ...prev.builds].slice(0, 50),
+    }));
+  }, []);
+
+  const addWpBuild = useCallback((build: Build) => {
+    setState(prev => ({
+      ...prev,
+      latestWpBuild: build,
+      wpBuilds: [build, ...prev.wpBuilds].slice(0, 50),
     }));
   }, []);
 
@@ -47,6 +57,7 @@ export function useStore() {
     serverOnline,
     setFullState,
     addBuild,
+    addWpBuild,
     updatePipelineStep,
     addDeployLog,
     clearDeployLogs,

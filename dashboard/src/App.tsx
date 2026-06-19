@@ -26,7 +26,7 @@ function AppInner() {
   const { theme, toggle: toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const store = useStore();
-  const { state, deployLogs, serverOnline, setFullState, addBuild, updatePipelineStep, addDeployLog, clearDeployLogs, setServerOnline } = store;
+  const { state, deployLogs, serverOnline, setFullState, addBuild, addWpBuild, updatePipelineStep, addDeployLog, clearDeployLogs, setServerOnline } = store;
 
   useSocket({
     onStateUpdate: (s) => {
@@ -35,7 +35,11 @@ function AppInner() {
     },
     onWebhookReceived: (build) => {
       addBuild(build);
-      toast(`Build received: ${build.pageName}`, 'success', build.projectName);
+      toast(`Web build: ${build.pageName}`, 'success', build.projectName);
+    },
+    onWpBuildReceived: (build) => {
+      addWpBuild(build);
+      toast(`WP build: ${build.pageName}`, 'info', build.projectName);
     },
     onPipelineStep: ({ step, status, error }) => {
       updatePipelineStep(step as keyof Pipeline, status as Pipeline[keyof Pipeline]);
@@ -62,7 +66,7 @@ function AppInner() {
         <Route path="/*" element={
           <AuthGuard>
             <div className="shell">
-              <Sidebar serverOnline={serverOnline} buildsCount={state.builds.length} />
+              <Sidebar serverOnline={serverOnline} buildsCount={state.builds.length} wpBuildsCount={state.wpBuilds.length} />
               <div className="main-wrap">
                 <TopBar
                   lastBuildTime={state.latestBuild?.timestamp}
@@ -74,7 +78,7 @@ function AppInner() {
                   <Route path="/" element={<DashboardPage state={state} />} />
                   <Route path="/preview" element={<PreviewPage latestBuild={state.latestBuild} builds={state.builds} />} />
                   <Route path="/github"  element={<GitHubPage latestBuild={state.latestBuild} builds={state.builds} onPipelineStep={handlePipelineStep} />} />
-                  <Route path="/wordpress" element={<WordPressPage latestBuild={state.latestBuild} builds={state.builds} onPipelineStep={handlePipelineStep} />} />
+                  <Route path="/wordpress" element={<WordPressPage latestBuild={state.latestWpBuild ?? state.latestBuild} builds={state.wpBuilds.length > 0 ? state.wpBuilds : state.builds} onPipelineStep={handlePipelineStep} />} />
                   <Route path="/deploy"   element={<DeployPage pipeline={state.pipeline} deployLogs={deployLogs} onClearLogs={clearDeployLogs} />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/profile"  element={<ProfilePage />} />
