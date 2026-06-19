@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Layers, Download, Package, Rocket, CheckCircle, FileCode, Globe } from 'lucide-react';
 import { wordpress as wpApi } from '../api/client';
+import { useAuth } from '../store/useAuth';
 import { Build } from '../types';
 import { useToast } from '../components/cards/ToastProvider';
 import DeployModal from '../components/panels/DeployModal';
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function WordPressPage({ latestBuild, builds, onPipelineStep }: Props) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [converting, setConverting] = useState(false);
   const [zipBlob, setZipBlob]       = useState<Blob | null>(null);
@@ -39,6 +41,7 @@ export default function WordPressPage({ latestBuild, builds, onPipelineStep }: P
         projectName: activeProject,
         pages,
         globalContext: latestBuild?.rawPayload?.global_context ?? {},
+        githubRepo: user?.github?.selectedRepo ?? undefined,
       });
       setZipBlob(blob);
       onPipelineStep('wordpress', 'done');
