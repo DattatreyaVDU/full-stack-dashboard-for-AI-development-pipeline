@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: n8n-dashboard-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: FRONTEND_URL
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_OWNER
+        sync: false
+      - key: GITHUB_REPO
+        sync: false
+      - key: GITHUB_BRANCH
+        value: main
+      - key: FTP_HOST
+        sync: false
+      - key: FTP_USER
+        sync: false
+      - key: FTP_PASS
+        sync: false
+      - key: FTP_REMOTE_PATH
+        value: /wp-content/themes
+      - key: N8N_WEBHOOK_SECRET
+        sync: false
+      - key: N8N_CHAT_URL
+        sync: false
