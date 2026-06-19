@@ -111,4 +111,10 @@ router.post('/select', requireAuth, (req, res) => {
   res.json({ user: safeUser(updated) });
 });
 
+// DELETE /api/auth/github/disconnect
+router.delete('/disconnect', requireAuth, (req, res) => {
+  const updated = updateUser(req.user.id, { github: null });
+  res.json({ user: safeUser(updated) });
+});
+
 module.exports = router;

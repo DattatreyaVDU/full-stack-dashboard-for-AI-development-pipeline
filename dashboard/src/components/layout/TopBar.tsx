@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { RefreshCw, Bell, Sun, Moon, LogOut, User } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { RefreshCw, Bell, Sun, Moon, LogOut, User, UserCircle } from 'lucide-react';
 import { state as stateApi } from '../../api/client';
 import { Theme } from '../../hooks/useTheme';
 import { DashboardState } from '../../types';
@@ -14,6 +14,8 @@ const ROUTES: Record<string, string> = {
   '/wordpress': 'WordPress Converter',
   '/deploy':    'Deployment',
   '/settings':  'Settings',
+  '/profile':   'My Profile',
+  '/admin':     'Admin Panel',
 };
 
 interface Props {
@@ -27,6 +29,7 @@ interface Props {
 
 export default function TopBar({ lastBuildTime, theme, onThemeToggle, onRefresh, user, onLogout }: Props) {
   const { pathname } = useLocation();
+  const navigate      = useNavigate();
   const label = ROUTES[pathname] ?? pathname;
   const [spinning,     setSpinning]     = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -129,14 +132,18 @@ export default function TopBar({ lastBuildTime, theme, onThemeToggle, onRefresh,
                   )}
                 </div>
                 <button
-                  onClick={() => { setUserMenuOpen(false); onLogout?.(); }}
-                  style={{
-                    width: '100%', padding: '0.625rem 1rem', background: 'none', border: 'none',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem',
-                    fontSize: '0.8125rem', color: 'var(--text-secondary)',
-                    textAlign: 'left',
-                  }}
+                  onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
+                  style={{ width: '100%', padding: '0.625rem 1rem', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-secondary)', textAlign: 'left' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <UserCircle size={13} /> View Profile
+                </button>
+                <div style={{ height: 1, background: 'var(--border)', margin: '0.25rem 0' }} />
+                <button
+                  onClick={() => { setUserMenuOpen(false); onLogout?.(); }}
+                  style={{ width: '100%', padding: '0.625rem 1rem', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: '#f87171', textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.06)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                 >
                   <LogOut size={13} /> Sign out

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Eye, Github, Layers, Rocket,
-  Settings, Zap, Activity, MessageSquare, ShieldCheck,
+  Settings, Zap, Activity, MessageSquare, ShieldCheck, UserCircle,
 } from 'lucide-react';
 import { useAuth } from '../../store/useAuth';
 
@@ -52,6 +52,10 @@ export default function Sidebar({ serverOnline, buildsCount }: Props) {
 
       <div className="sidebar-section" style={{ marginTop: '0.25rem' }}>
         <div className="sidebar-section-label">System</div>
+        <NavLink to="/profile" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <UserCircle className="nav-icon" />
+          My Profile
+        </NavLink>
         <NavLink to="/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <Settings className="nav-icon" />
           Settings
