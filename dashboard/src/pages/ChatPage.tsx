@@ -38,6 +38,7 @@ interface Props {
 const STORAGE_SESSION  = 'n8n-chat-session-id';
 const STORAGE_MESSAGES = 'n8n-chat-messages';
 const STORAGE_STARTED  = 'n8n-chat-started';
+const STORAGE_BUILDING = 'n8n-chat-building';
 
 const EXAMPLES = [
   { icon: '🚗', title: 'Luxury Car Rental', desc: 'Dark theme, booking system, user accounts' },
@@ -81,7 +82,15 @@ export default function ChatPage({ builds }: Props) {
   const [input, setInput]             = useState('');
   const [loading, setLoading]         = useState(false);
   const [starting, setStarting]       = useState(false);
-  const [building, setBuilding]       = useState(false);
+  const [building, setBuilding]       = useState<boolean>(() => {
+    // Restore building state if user navigated away mid-pipeline
+    if (localStorage.getItem(STORAGE_BUILDING) !== 'true') return false;
+    // Only restore if an in-progress card exists in stored messages
+    try {
+      const msgs = JSON.parse(localStorage.getItem(STORAGE_MESSAGES) || '[]') as Message[];
+      return msgs.some(m => m.id === 'build-progress');
+    } catch { return false; }
+  });
   const [sessionId, setSessionId]     = useState<string>(loadSessionId);
   const [n8nConfigured, setN8nConfigured] = useState<boolean | null>(null);
 
@@ -92,7 +101,30 @@ export default function ChatPage({ builds }: Props) {
   const buildingRef      = useRef(false);
   const builtPagesRef    = useRef<Build[]>([]);
 
-  useEffect(() => { buildingRef.current = building; }, [building]);
+  useEffect(() => {
+    buildingRef.current = building;
+    if (building) {
+      localStorage.setItem(STORAGE_BUILDING, 'true');
+    } else {
+      localStorage.removeItem(STORAGE_BUILDING);
+    }
+  }, [building]);
+
+  // On mount: if we restored building=true, skip already-received builds so we
+  // don't duplicate steps in the progress card, and restart the completion timer.
+  const didRestoreBuilding = useRef(false);
+  useEffect(() => {
+    if (!building || didRestoreBuilding.current) return;
+    didRestoreBuilding.current = true;
+    buildingRef.current = true;
+    // Skip builds already shown in the persisted progress card
+    prevBuildsCount.current = builds.length;
+    // Repopulate builtPagesRef so fireCompletion has project name / count
+    builtPagesRef.current = builds.slice();
+    // Restart timer — pipeline may already be done, fire after timeout
+    resetCompletionTimer();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     n8nApi.status()
@@ -108,6 +140,7 @@ export default function ChatPage({ builds }: Props) {
     if (!buildingRef.current) return;
     setBuilding(false);
     buildingRef.current = false;
+    localStorage.removeItem(STORAGE_BUILDING);
     const pages    = builtPagesRef.current;
     const count    = pages.length;
     const projName = pages[0]?.projectName ?? 'your project';
