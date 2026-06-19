@@ -100,8 +100,7 @@ add_action( 'widgets_init', '${themeName.replace(/-/g, '_')}_widgets_init' );
 `;
 
     // ── header.php ──────────────────────────────────────────────────────────────
-    const headerPHP = `<?php get_header(); ?>
-<!DOCTYPE html>
+    const headerPHP = `<!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
   <meta charset="<?php bloginfo( 'charset' ); ?>">
