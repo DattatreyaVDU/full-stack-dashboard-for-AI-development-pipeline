@@ -25,6 +25,19 @@ function collectProjects(state) {
     return projectMap.get(safeName);
   }
 
+  const VALID_EXTS = new Set([
+    '.php', '.css', '.js', '.html', '.htm',
+    '.json', '.txt', '.pot', '.png', '.jpg', '.jpeg', '.svg', '.webp',
+    '.md', '.xml', '.htaccess',
+  ]);
+
+  function isGarbage(fname) {
+    if (fname.length > 80) return true;
+    if (/^[a-zA-Z][-]{2}/.test(fname)) return true;
+    if (/^\d{2}_/.test(fname) && fname.endsWith('.md')) return true;
+    return false;
+  }
+
   // ── 1. Scan PROJECTS_DIR on disk ────────────────────────────────────────────
   if (fs.existsSync(PROJECTS_DIR)) {
     try {
@@ -33,7 +46,10 @@ function collectProjects(state) {
         if (!fs.statSync(fullPath).isDirectory()) return;
         const proj = ensureProject(name);
         fs.readdirSync(fullPath)
-          .filter(f => f.endsWith('.md') || f.endsWith('.txt'))
+          .filter(f => {
+            const ext = path.extname(f).toLowerCase();
+            return VALID_EXTS.has(ext) && !isGarbage(f);
+          })
           .forEach(f => {
             proj.files.set(f, { name: f, diskPath: path.join(fullPath, f) });
           });
@@ -56,6 +72,11 @@ function collectProjects(state) {
     const fileName = baseName
       ? (baseName.includes('.') ? baseName : baseName + '.md')
       : `page_${build.pageId || '00'}.md`;
+
+    // Skip garbage path-encoded filenames and prompt/context files
+    if (isGarbage(fileName)) return;
+    const ext = path.extname(fileName).toLowerCase();
+    if (ext && !VALID_EXTS.has(ext)) return;
 
     if (proj.files.has(fileName)) return; // already added from disk scan
 

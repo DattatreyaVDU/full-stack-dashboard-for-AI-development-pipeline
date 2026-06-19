@@ -9,6 +9,23 @@ const { findByWebhookToken } = require('../utils/users');
 // All generated files land here: <project-root>/projects/<projectName>/
 const PROJECTS_DIR = path.join(__dirname, '..', '..', '..', 'projects');
 
+// Valid WordPress/web theme file extensions
+const VALID_THEME_EXTS = new Set([
+  '.php', '.css', '.js', '.html', '.htm',
+  '.json', '.txt', '.pot', '.png', '.jpg', '.jpeg', '.svg', '.webp',
+  '.md', '.xml', '.htaccess',
+]);
+
+function isGarbageFilename(baseName) {
+  // Path-encoded filenames like "template-f--internship-claude-ai-works-..."
+  if (baseName.length > 80) return true;
+  // Absolute paths that leaked into the filename
+  if (/^[a-zA-Z][-]{2}/.test(baseName)) return true;
+  // Prompt/context markdown files (00_art_direction_brief.md etc.)
+  if (/^\d{2}_/.test(baseName) && baseName.endsWith('.md')) return true;
+  return false;
+}
+
 function saveFileToDisk(build) {
   if (!build.content) return null;
   try {
@@ -16,11 +33,22 @@ function saveFileToDisk(build) {
     const dir = path.join(PROJECTS_DIR, safeName);
     fs.mkdirSync(dir, { recursive: true });
 
-    const rawFile = build.filePath || build.pageName || `page_${build.pageId}`;
+    const rawFile  = build.filePath || build.pageName || `page_${build.pageId}`;
     const baseName = path.basename(rawFile);
-    const fileName = baseName.includes('.') ? baseName : `${baseName}.md`;
-    const fullPath = path.join(dir, fileName);
+    const ext      = path.extname(baseName).toLowerCase();
+    const fileName = ext ? baseName : `${baseName}.md`;
 
+    // Skip garbage files — path-encoded names, prompt files, unknown extensions
+    if (isGarbageFilename(fileName)) {
+      console.log(`[Webhook] Skipped garbage filename: ${fileName}`);
+      return null;
+    }
+    if (ext && !VALID_THEME_EXTS.has(ext)) {
+      console.log(`[Webhook] Skipped unsupported extension: ${fileName}`);
+      return null;
+    }
+
+    const fullPath = path.join(dir, fileName);
     fs.writeFileSync(fullPath, build.content, 'utf8');
     console.log(`[Webhook] Saved → ${fullPath}`);
     return fullPath;
