@@ -6,6 +6,12 @@ import { Build } from '../types';
 
 interface Props { latestBuild: Build | null; builds: Build[]; }
 
+// Extract clean filename from a full path like F:/.../.../02_supabase_schema.md
+function cleanName(path: string): string {
+  if (!path) return '';
+  return path.split(/[/\\]/).pop()?.replace(/\.md$/i, '') ?? path;
+}
+
 type ViewMode = 'preview' | 'code' | 'split';
 
 export default function PreviewPage({ latestBuild, builds }: Props) {
@@ -32,7 +38,7 @@ export default function PreviewPage({ latestBuild, builds }: Props) {
               <option value="">— Select build —</option>
               {builds.map(b => (
                 <option key={b.id} value={b.id}>
-                  [{b.pageId}] {b.projectName} / {b.pageName}
+                  [{b.pageId}] {cleanName(b.projectName)} › {cleanName(b.pageName)}
                   {b.content ? '' : ' ⚠ no content'}
                 </option>
               ))}
@@ -74,7 +80,7 @@ export default function PreviewPage({ latestBuild, builds }: Props) {
           {view !== 'code' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
               <div className="card-title" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                <Eye size={12} /> Live Preview
+                <Eye size={12} /> Prompt Preview &nbsp;<span style={{ fontSize: '0.65rem', color: 'var(--accent-orange)', fontWeight: 400 }}>(rendered markdown — paste into Cursor to build the site)</span>
               </div>
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 {getPreviewHtml(build.content) ? (
