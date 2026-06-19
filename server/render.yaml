@@ -3,7 +3,7 @@ services:
     name: n8n-dashboard-backend
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: cd ../dashboard && npm install && npm run build && mkdir -p ../server/public && cp -r dist/. ../server/public/ && cd ../server && npm install
     startCommand: npm start
     envVars:
       - key: PORT

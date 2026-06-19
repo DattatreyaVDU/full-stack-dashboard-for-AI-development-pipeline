@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const fileUpload = require('express-fileupload');
@@ -15,9 +16,13 @@ const downloadRoutes = require('./routes/download');
 const app = express();
 const httpServer = http.createServer(app);
 
+const corsOrigin = process.env.FRONTEND_URL === '*'
+  ? true
+  : (process.env.FRONTEND_URL || 'http://localhost:5173');
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: corsOrigin,
     methods: ['GET', 'POST'],
   },
 });
@@ -25,7 +30,7 @@ const io = new Server(httpServer, {
 // Make io available to routes
 app.set('io', io);
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
@@ -84,6 +89,13 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`[WS] Client disconnected: ${socket.id}`);
   });
+});
+
+// Serve React dashboard build — must be after all API routes
+const publicDir = path.join(__dirname, '..', 'public');
+app.use(express.static(publicDir));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3001;
