@@ -130,10 +130,15 @@ export default function RegisterPage() {
 
   return (
     <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg-base)', padding: '1.5rem',
+      minHeight: '100vh',
+      background: 'var(--bg-base)',
+      overflowY: 'auto',
+      padding: '2.5rem 1.5rem',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
     }}>
-      <div style={{ width: '100%', maxWidth: '460px' }}>
+      <div style={{ width: '100%', maxWidth: '480px' }}>
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
