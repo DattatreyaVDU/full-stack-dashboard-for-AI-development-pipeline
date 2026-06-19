@@ -39,11 +39,13 @@ function saveFileToDisk(build) {
  *  B) Legacy snake_case format (File-Creation node per-page event):
  *     { project_name, page_id, page_name, content, archivo_creado, carpeta, ... }
  */
-// Strip unevaluated n8n expressions like {{ $json.foo }} — treat as missing
+// Strip only if the ENTIRE value is an unevaluated n8n expression like "={{ $json.foo }}"
+// Do NOT strip actual content that merely contains {{ }} (e.g. LLM-generated markdown)
 function clean(val, fallback = '') {
   if (!val || typeof val !== 'string') return fallback;
-  if (val.includes('{{') || val.includes('}}')) return fallback;
-  return val.trim() || fallback;
+  const trimmed = val.trim();
+  if (trimmed.startsWith('={{') || /^\{\{[\s\S]*\}\}$/.test(trimmed)) return fallback;
+  return trimmed || fallback;
 }
 
 function normalizeBuild(payload) {
