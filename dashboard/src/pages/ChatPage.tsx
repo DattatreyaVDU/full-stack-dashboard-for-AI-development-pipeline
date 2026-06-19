@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, User, Zap, Eye, Code2, AlertCircle, ExternalLink, Github, LayoutDashboard, CheckCircle2 } from 'lucide-react';
+import { Send, Bot, User, Zap, Eye, LayoutDashboard, Github, CheckCircle2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
 import { n8n as n8nApi } from '../api/client';
 import { Build } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -19,23 +19,24 @@ interface Props {
 
 const STORAGE_SESSION  = 'n8n-chat-session-id';
 const STORAGE_MESSAGES = 'n8n-chat-messages';
+const STORAGE_STARTED  = 'n8n-chat-started';
 
-const WELCOME_MESSAGE: Message = {
-  id: 'welcome',
-  role: 'assistant',
-  text: "Hi! I'm your AI project manager. Tell me about the website or app you want to build — describe the idea, style, features, and any specific requirements. I'll ask a few questions if needed, then launch the full build pipeline automatically.",
-  ts: new Date(),
-};
+const EXAMPLES = [
+  { icon: '🚗', title: 'Luxury Car Rental', desc: 'Dark theme, booking system, user accounts' },
+  { icon: '🛍️', title: 'E-Commerce Store', desc: 'Product catalog, cart, payment integration' },
+  { icon: '🍕', title: 'Restaurant Website', desc: 'Menu, reservations, online ordering' },
+  { icon: '🚀', title: 'SaaS Landing Page', desc: 'Pricing tables, testimonials, waitlist' },
+];
+
+const COMPLETION_TIMEOUT = 18000;
 
 function loadMessages(): Message[] {
   try {
     const raw = localStorage.getItem(STORAGE_MESSAGES);
-    if (!raw) return [WELCOME_MESSAGE];
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as Message[];
     return parsed.map(m => ({ ...m, ts: new Date(m.ts) }));
-  } catch {
-    return [WELCOME_MESSAGE];
-  }
+  } catch { return []; }
 }
 
 function loadSessionId(): string {
@@ -46,104 +47,82 @@ function loadSessionId(): string {
   return newId;
 }
 
-const STARTER_PROMPTS = [
-  'Build a luxury car rental website with dark theme, booking system and user accounts',
-  'Create an e-commerce store with product catalog, cart and payment integration',
-  'I need a SaaS landing page with pricing tables, testimonials and waitlist form',
-  'Build a restaurant website with menu, reservations and online ordering',
-];
-
 function detectBuildStart(text: string): boolean {
   return text.includes('[EXECUTE_BUILD]');
 }
-
 function cleanBuildTag(text: string): string {
   return text.replace('[EXECUTE_BUILD]', '').trim();
 }
 
-// How long with no new build before we declare completion (ms)
-const COMPLETION_TIMEOUT = 18000;
-
-export default function ChatPage({ latestBuild, builds }: Props) {
+export default function ChatPage({ builds }: Props) {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<Message[]>(loadMessages);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [building, setBuilding] = useState(false);
-  const [sessionId, setSessionId] = useState<string>(loadSessionId);
+  const [chatStarted, setChatStarted] = useState<boolean>(() => {
+    return localStorage.getItem(STORAGE_STARTED) === 'true';
+  });
+  const [messages, setMessages]       = useState<Message[]>(loadMessages);
+  const [input, setInput]             = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [starting, setStarting]       = useState(false);
+  const [building, setBuilding]       = useState(false);
+  const [sessionId, setSessionId]     = useState<string>(loadSessionId);
   const [n8nConfigured, setN8nConfigured] = useState<boolean | null>(null);
-  const bottomRef   = useRef<HTMLDivElement>(null);
-  const inputRef    = useRef<HTMLTextAreaElement>(null);
+
+  const bottomRef        = useRef<HTMLDivElement>(null);
+  const inputRef         = useRef<HTMLTextAreaElement>(null);
   const prevBuildsCount  = useRef(builds.length);
   const completionTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const buildingRef      = useRef(false); // stable ref for timer callbacks
+  const buildingRef      = useRef(false);
   const builtPagesRef    = useRef<Build[]>([]);
 
-  // Keep ref in sync with state
   useEffect(() => { buildingRef.current = building; }, [building]);
 
-  // Check n8n status on mount
   useEffect(() => {
     n8nApi.status()
       .then(s => setN8nConfigured(s.configured))
       .catch(() => setN8nConfigured(false));
   }, []);
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Called when no new build arrives within COMPLETION_TIMEOUT while building
   const fireCompletion = useCallback(() => {
     if (!buildingRef.current) return;
     setBuilding(false);
     buildingRef.current = false;
-
     const pages    = builtPagesRef.current;
     const count    = pages.length;
     const projName = pages[0]?.projectName ?? 'your project';
-
     setMessages(prev => [...prev, {
-      id:   `complete-${Date.now()}`,
-      role: 'complete',
-      text: '',
-      ts:   new Date(),
+      id: `complete-${Date.now()}`, role: 'complete', text: '', ts: new Date(),
       meta: { pageCount: count, projectName: projName },
     }]);
     builtPagesRef.current = [];
   }, []);
 
-  // Reset the completion countdown every time a new build arrives
   const resetCompletionTimer = useCallback(() => {
     if (completionTimer.current) clearTimeout(completionTimer.current);
     completionTimer.current = setTimeout(fireCompletion, COMPLETION_TIMEOUT);
   }, [fireCompletion]);
 
-  // Detect new builds while pipeline is running
   useEffect(() => {
     if (builds.length > prevBuildsCount.current && building) {
       const newest = builds[0];
       builtPagesRef.current = [newest, ...builtPagesRef.current];
-
       setMessages(prev => [...prev, {
-        id:   `build-${newest.id}`,
-        role: 'system',
+        id: `build-${newest.id}`, role: 'system',
         text: `✅ **${newest.pageName}** generated — ${newest.projectName}`,
-        ts:   new Date(),
+        ts: new Date(),
       }]);
-
       resetCompletionTimer();
     }
     prevBuildsCount.current = builds.length;
   }, [builds, building, resetCompletionTimer]);
 
-  // Cleanup timer on unmount
   useEffect(() => () => {
     if (completionTimer.current) clearTimeout(completionTimer.current);
   }, []);
 
-  // Persist messages
   useEffect(() => {
     localStorage.setItem(STORAGE_MESSAGES, JSON.stringify(messages));
   }, [messages]);
@@ -152,29 +131,46 @@ export default function ChatPage({ latestBuild, builds }: Props) {
     setMessages(prev => [...prev, { id: `${Date.now()}`, role, text, ts: new Date() }]);
   }, []);
 
+  // Click "Start New Project" → send "hi" to n8n → show greeting → open chat
+  const handleStart = useCallback(async () => {
+    setStarting(true);
+    try {
+      const data = await n8nApi.chat('hi', sessionId);
+      const reply: string = data.output ?? 'System ready. Please describe the software idea you want to build.';
+      setMessages([{ id: 'greeting', role: 'assistant', text: reply, ts: new Date() }]);
+    } catch {
+      setMessages([{ id: 'greeting', role: 'assistant', text: 'System ready. Please describe the software idea you want to build.', ts: new Date() }]);
+    } finally {
+      setChatStarted(true);
+      localStorage.setItem(STORAGE_STARTED, 'true');
+      setStarting(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [sessionId]);
+
+  // "+ New Chat" → wipe everything and go back to landing
   const startNewChat = useCallback(() => {
     if (completionTimer.current) clearTimeout(completionTimer.current);
     const newId = `session-${Date.now()}`;
     localStorage.setItem(STORAGE_SESSION, newId);
     localStorage.removeItem(STORAGE_MESSAGES);
+    localStorage.removeItem(STORAGE_STARTED);
     setSessionId(newId);
-    setMessages([WELCOME_MESSAGE]);
+    setMessages([]);
     setBuilding(false);
+    setChatStarted(false);
     builtPagesRef.current = [];
   }, []);
 
   const send = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || loading) return;
-
     setInput('');
     addMessage('user', msg);
     setLoading(true);
-
     try {
       const data = await n8nApi.chat(msg, sessionId);
       const reply: string = data.output ?? 'No response from n8n.';
-
       if (detectBuildStart(reply)) {
         const cleanReply = cleanBuildTag(reply);
         if (cleanReply) addMessage('assistant', cleanReply);
@@ -201,6 +197,82 @@ export default function ChatPage({ latestBuild, builds }: Props) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
+  // ── Landing screen ─────────────────────────────────────────────────────────
+  if (!chatStarted) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100%', padding: '2rem', gap: '2rem',
+      }}>
+        {/* Icon + title */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: '20px', margin: '0 auto 1.25rem',
+            background: 'linear-gradient(135deg, var(--accent-teal), var(--accent-blue))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 8px 32px rgba(45,212,191,0.25)',
+          }}>
+            <Sparkles size={34} color="#fff" />
+          </div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
+            AI Code Pipeline
+          </h1>
+          <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginTop: '0.625rem', maxWidth: 420, lineHeight: 1.6 }}>
+            Describe your website idea and the AI will generate complete React &amp; WordPress implementation prompts — ready to run in Cursor.
+          </p>
+        </div>
+
+        {/* Example cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem', width: '100%', maxWidth: 480 }}>
+          {EXAMPLES.map((ex, i) => (
+            <div key={i} style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.875rem',
+              cursor: 'default',
+            }}>
+              <div style={{ fontSize: '1.25rem', marginBottom: '0.375rem' }}>{ex.icon}</div>
+              <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--text-primary)' }}>{ex.title}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>{ex.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* n8n warning if not configured */}
+        {n8nConfigured === false && (
+          <div style={{
+            background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.25)',
+            borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem',
+            display: 'flex', alignItems: 'center', gap: '0.625rem',
+            fontSize: '0.8rem', color: 'var(--accent-orange)', maxWidth: 480, width: '100%',
+          }}>
+            <AlertCircle size={14} style={{ flexShrink: 0 }} />
+            <span><strong>n8n not connected.</strong> Set <code>N8N_CHAT_URL</code> in Render environment variables.</span>
+          </div>
+        )}
+
+        {/* Start button */}
+        <button
+          className="btn btn-primary"
+          style={{ padding: '0.875rem 2.5rem', fontSize: '1rem', fontWeight: 600, gap: '0.625rem', borderRadius: 'var(--radius-md)' }}
+          onClick={handleStart}
+          disabled={starting}
+        >
+          {starting
+            ? <><span className="spinner" style={{ width: 16, height: 16, borderWidth: '2px' }} /> Starting pipeline...</>
+            : <><Zap size={18} /> Start New Project <ArrowRight size={16} /></>
+          }
+        </button>
+
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+          Generates React + WordPress prompts in 5–6 minutes
+        </p>
+      </div>
+    );
+  }
+
+  // ── Chat screen ────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
@@ -220,31 +292,11 @@ export default function ChatPage({ latestBuild, builds }: Props) {
         </button>
       </div>
 
-      {/* n8n not configured warning */}
-      {n8nConfigured === false && (
-        <div style={{
-          background: 'rgba(251,146,60,.08)',
-          border: '1px solid rgba(251,146,60,.25)',
-          borderRadius: 'var(--radius-md)',
-          padding: '0.75rem 1rem',
-          margin: '1rem 1.5rem 0',
-          display: 'flex', alignItems: 'center', gap: '0.625rem',
-          fontSize: '0.8rem', color: 'var(--accent-orange)', flexShrink: 0,
-        }}>
-          <AlertCircle size={14} style={{ flexShrink: 0 }} />
-          <span>
-            <strong>n8n not connected.</strong> Set <code>N8N_CHAT_URL</code> in <code>server/.env</code> to enable live chat.
-          </span>
-        </div>
-      )}
-
       {/* Building status bar */}
       {building && (
         <div style={{
-          background: 'rgba(96,165,250,.08)',
-          border: '1px solid rgba(96,165,250,.2)',
-          borderRadius: 'var(--radius-md)',
-          padding: '0.625rem 1rem',
+          background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.2)',
+          borderRadius: 'var(--radius-md)', padding: '0.625rem 1rem',
           margin: '0.75rem 1.5rem 0',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0,
@@ -273,15 +325,12 @@ export default function ChatPage({ latestBuild, builds }: Props) {
           <ChatBubble key={m.id} message={m} navigate={navigate} />
         ))}
 
-        {/* Typing indicator */}
         {loading && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem' }}>
             <Avatar isUser={false} />
             <div style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: '0 12px 12px 12px',
-              padding: '0.75rem 1rem',
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: '0 12px 12px 12px', padding: '0.75rem 1rem',
               display: 'flex', gap: '4px', alignItems: 'center',
             }}>
               {[0, 1, 2].map(i => (
@@ -298,27 +347,6 @@ export default function ChatPage({ latestBuild, builds }: Props) {
 
         <div ref={bottomRef} />
       </div>
-
-      {/* Starter prompts — only on first message */}
-      {messages.length === 1 && !loading && (
-        <div style={{ padding: '0 1.5rem', flexShrink: 0 }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Quick start
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            {STARTER_PROMPTS.map((p, i) => (
-              <button
-                key={i}
-                className="btn btn-ghost btn-sm"
-                style={{ textAlign: 'left', whiteSpace: 'normal', lineHeight: 1.4, padding: '0.5rem 0.75rem', fontSize: '0.75rem' }}
-                onClick={() => send(p)}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Input area */}
       <div style={{
@@ -386,7 +414,6 @@ export default function ChatPage({ latestBuild, builds }: Props) {
   );
 }
 
-// ── Avatar ────────────────────────────────────────────────────────────────────
 function Avatar({ isUser }: { isUser: boolean }) {
   return (
     <div style={{
@@ -401,112 +428,60 @@ function Avatar({ isUser }: { isUser: boolean }) {
   );
 }
 
-// ── ChatBubble ────────────────────────────────────────────────────────────────
 function ChatBubble({ message, navigate }: { message: Message; navigate: ReturnType<typeof useNavigate> }) {
   const isUser = message.role === 'user';
 
-  // ── Build complete card ──
   if (message.role === 'complete') {
     const { pageCount = 0, projectName = 'your project' } = message.meta ?? {};
     return (
-      <div style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
-        overflow: 'hidden',
-      }}>
-        {/* Green header strip */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
         <div style={{
-          background: 'rgba(45,212,191,0.1)',
-          borderBottom: '1px solid rgba(45,212,191,0.2)',
-          padding: '0.875rem 1.125rem',
-          display: 'flex', alignItems: 'center', gap: '0.625rem',
+          background: 'rgba(45,212,191,0.1)', borderBottom: '1px solid rgba(45,212,191,0.2)',
+          padding: '0.875rem 1.125rem', display: 'flex', alignItems: 'center', gap: '0.625rem',
         }}>
           <CheckCircle2 size={18} color="var(--accent-teal)" />
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>
-              Build complete!
-            </div>
+            <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>Build complete!</div>
             <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', marginTop: '1px' }}>
               {pageCount} page{pageCount !== 1 ? 's' : ''} generated for <strong>{projectName}</strong>
             </div>
           </div>
         </div>
-
-        {/* Body */}
         <div style={{ padding: '1rem 1.125rem' }}>
           <p style={{ fontSize: '0.8375rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.65 }}>
-            Your project is ready. You can now preview the generated pages, review them in the Overview dashboard, or commit the code directly to GitHub.
+            Your project is ready. Preview the generated pages, review them in the Overview dashboard, or commit to GitHub.
           </p>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-            <button
-              className="btn btn-primary btn-sm"
-              style={{ justifyContent: 'center' }}
-              onClick={() => navigate('/preview')}
-            >
+            <button className="btn btn-primary btn-sm" style={{ justifyContent: 'center' }} onClick={() => navigate('/preview')}>
               <Eye size={13} /> Live Preview
             </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ justifyContent: 'center' }}
-              onClick={() => navigate('/')}
-            >
+            <button className="btn btn-ghost btn-sm" style={{ justifyContent: 'center' }} onClick={() => navigate('/')}>
               <LayoutDashboard size={13} /> Overview
             </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ justifyContent: 'center' }}
-              onClick={() => navigate('/github')}
-            >
+            <button className="btn btn-ghost btn-sm" style={{ justifyContent: 'center' }} onClick={() => navigate('/github')}>
               <Github size={13} /> GitHub
             </button>
-          </div>
-
-          <div style={{
-            marginTop: '0.875rem',
-            padding: '0.625rem 0.875rem',
-            background: 'var(--bg-base)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border)',
-            fontSize: '0.775rem',
-            color: 'var(--text-muted)',
-            lineHeight: 1.6,
-          }}>
-            Want to build another project?{' '}
-            <span
-              style={{ color: 'var(--accent-teal)', cursor: 'pointer', fontWeight: 500 }}
-              onClick={() => navigate('/chat')}
-            >
-              Start a new chat
-            </span>
-            {' '}or ask a follow-up question below to refine this project.
           </div>
         </div>
       </div>
     );
   }
 
-  // ── System message ──
   if (message.role === 'system') {
     const isError   = message.text.startsWith('❌');
     const isSuccess = message.text.startsWith('✅') || message.text.startsWith('🚀');
-
-    const bg     = isError   ? 'rgba(248,113,113,0.08)'  : isSuccess ? 'rgba(45,212,191,0.07)'  : 'rgba(96,165,250,0.07)';
-    const border = isError   ? 'rgba(248,113,113,0.22)'  : isSuccess ? 'rgba(45,212,191,0.2)'   : 'rgba(96,165,250,0.18)';
-    const color  = isError   ? 'var(--accent-red)'       : isSuccess ? 'var(--accent-teal)'     : 'var(--accent-blue)';
-
+    const bg     = isError ? 'rgba(248,113,113,0.08)'  : isSuccess ? 'rgba(45,212,191,0.07)'  : 'rgba(96,165,250,0.07)';
+    const border = isError ? 'rgba(248,113,113,0.22)'  : isSuccess ? 'rgba(45,212,191,0.2)'   : 'rgba(96,165,250,0.18)';
+    const color  = isError ? 'var(--accent-red)'       : isSuccess ? 'var(--accent-teal)'     : 'var(--accent-blue)';
     return (
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
-        padding: '0.5rem 0.875rem',
-        background: bg, border: `1px solid ${border}`,
-        borderRadius: 'var(--radius-sm)',
-        fontSize: '0.8125rem', color: 'var(--text-secondary)',
-        lineHeight: 1.6,
+        padding: '0.5rem 0.875rem', background: bg,
+        border: `1px solid ${border}`, borderRadius: 'var(--radius-sm)',
+        fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.6,
       }}>
-        <span style={{ color, flexShrink: 0, marginTop: '2px', fontWeight: 700, fontSize: '0.875rem' }}>
-          {isError ? '✕' : isSuccess ? '✓' : <Zap size={12} />}
+        <span style={{ color, flexShrink: 0, marginTop: '2px', fontWeight: 700 }}>
+          {isError ? '✕' : '✓'}
         </span>
         <span dangerouslySetInnerHTML={{ __html: message.text
           .replace(/^[❌✅🚀]\s*/, '')
@@ -516,12 +491,8 @@ function ChatBubble({ message, navigate }: { message: Message; navigate: ReturnT
     );
   }
 
-  // ── User / assistant bubble ──
   return (
-    <div style={{
-      display: 'flex', alignItems: 'flex-start', gap: '0.625rem',
-      flexDirection: isUser ? 'row-reverse' : 'row',
-    }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', flexDirection: isUser ? 'row-reverse' : 'row' }}>
       <Avatar isUser={isUser} />
       <div style={{
         maxWidth: '76%',
@@ -531,9 +502,7 @@ function ChatBubble({ message, navigate }: { message: Message; navigate: ReturnT
         padding: '0.75rem 1rem',
         fontSize: '0.875rem',
         color: isUser ? '#fff' : 'var(--text-primary)',
-        lineHeight: 1.65,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
+        lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
       }}>
         {message.text}
       </div>
