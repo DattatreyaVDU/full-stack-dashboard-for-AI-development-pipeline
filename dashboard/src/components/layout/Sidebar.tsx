@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Eye, Github, Layers, Rocket,
-  Settings, Zap, Activity, MessageSquare, ShieldCheck, UserCircle, Code2,
+  Settings, Zap, Activity, MessageSquare, ShieldCheck, UserCircle, Code2, FolderOpen,
 } from 'lucide-react';
 import { useAuth } from '../../store/useAuth';
 
@@ -47,6 +47,9 @@ export default function Sidebar({ serverOnline, buildsCount, wpBuildsCount }: Pr
         </NavLink>
         <NavLink to="/github" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <Github className="nav-icon" /> GitHub
+        </NavLink>
+        <NavLink to="/files" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <FolderOpen className="nav-icon" /> File Explorer
         </NavLink>
         <NavLink to="/deploy" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <Rocket className="nav-icon" /> Deploy

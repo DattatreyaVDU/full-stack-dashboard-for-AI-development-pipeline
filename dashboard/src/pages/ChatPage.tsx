@@ -4,6 +4,12 @@ import { n8n as n8nApi } from '../api/client';
 import { Build } from '../types';
 import { useNavigate } from 'react-router-dom';
 
+// Module-level: survive React component remounts (navigate away & back)
+let _pendingOutput:     string | null    = null;
+let _pendingErrText:    string | null    = null;
+let _pendingSuggestion: string | undefined;
+let _requestInFlight                     = false;
+
 interface BuildStep {
   pageId:  string;
   name:    string;
@@ -100,6 +106,7 @@ export default function ChatPage({ builds }: Props) {
   const completionTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buildingRef      = useRef(false);
   const builtPagesRef    = useRef<Build[]>([]);
+  const isMountedRef     = useRef(false);
 
   useEffect(() => {
     buildingRef.current = building;
@@ -203,6 +210,43 @@ export default function ChatPage({ builds }: Props) {
     setMessages(prev => [...prev, { id: `${Date.now()}`, role, text, ts: new Date() }]);
   }, []);
 
+  // Process a successful n8n chat response (shared by send() and mount recovery)
+  const processN8nOutput = useCallback((reply: string) => {
+    if (detectBuildStart(reply)) {
+      const cleanReply = cleanBuildTag(reply);
+      if (cleanReply) addMessage('assistant', cleanReply);
+      const projMatch = cleanReply.match(/project(?:\s+name)?[:\s]+["']?([A-Za-z0-9 _-]+)/i);
+      const projLabel = projMatch?.[1]?.trim() ?? 'your project';
+      setMessages(prev => [...prev, {
+        id: 'build-progress', role: 'progress' as const, text: projLabel, ts: new Date(),
+        meta: { projectName: projLabel, steps: [] },
+      }]);
+      setBuilding(true);
+      builtPagesRef.current = [];
+      resetCompletionTimer();
+    } else {
+      addMessage('assistant', reply);
+    }
+  }, [addMessage, resetCompletionTimer]);
+
+  // On mount: consume any response that arrived while we were on another page
+  useEffect(() => {
+    isMountedRef.current = true;
+    if (_pendingOutput !== null) {
+      const out = _pendingOutput;
+      _pendingOutput = null;
+      processN8nOutput(out);
+    } else if (_pendingErrText !== null) {
+      const errText = _pendingErrText;
+      const suggestion = _pendingSuggestion;
+      _pendingErrText = null;
+      _pendingSuggestion = undefined;
+      addMessage('system', `❌ **Error:** ${errText}${suggestion ? `\n💡 ${suggestion}` : ''}`);
+    }
+    return () => { isMountedRef.current = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Click "Start New Project" → send "hi" to n8n → show greeting → open chat
   const handleStart = useCallback(async () => {
     setStarting(true);
@@ -240,39 +284,38 @@ export default function ChatPage({ builds }: Props) {
     setInput('');
     addMessage('user', msg);
     setLoading(true);
+    _requestInFlight = true;
     try {
       const data = await n8nApi.chat(msg, sessionId);
       const reply: string = data.output ?? 'No response from n8n.';
-      if (detectBuildStart(reply)) {
-        const cleanReply = cleanBuildTag(reply);
-        if (cleanReply) addMessage('assistant', cleanReply);
-        // Extract project name from reply for the progress card header
-        const projMatch = cleanReply.match(/project(?:\s+name)?[:\s]+["']?([A-Za-z0-9 _-]+)/i);
-        const projLabel = projMatch?.[1]?.trim() ?? 'your project';
-        setMessages(prev => [...prev, {
-          id:   'build-progress',
-          role: 'progress',
-          text: projLabel,
-          ts:   new Date(),
-          meta: { projectName: projLabel, steps: [] },
-        }]);
-        setBuilding(true);
-        builtPagesRef.current = [];
-        resetCompletionTimer();
-      } else {
-        addMessage('assistant', reply);
+      // Store at module level first — if component is unmounted the mount effect will consume it
+      _pendingOutput = reply;
+      _pendingErrText = null;
+      if (isMountedRef.current) {
+        _pendingOutput = null;
+        processN8nOutput(reply);
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string; suggestion?: string } }; message?: string };
       const serverData = axiosErr?.response?.data;
       const errText = serverData?.error ?? (err instanceof Error ? err.message : 'Connection failed');
       const suggestion = serverData?.suggestion;
-      addMessage('system', `❌ **Error:** ${errText}${suggestion ? `\n💡 ${suggestion}` : ''}`);
+      _pendingErrText = errText;
+      _pendingSuggestion = suggestion;
+      _pendingOutput = null;
+      if (isMountedRef.current) {
+        _pendingErrText = null;
+        _pendingSuggestion = undefined;
+        addMessage('system', `❌ **Error:** ${errText}${suggestion ? `\n💡 ${suggestion}` : ''}`);
+      }
     } finally {
-      setLoading(false);
-      inputRef.current?.focus();
+      _requestInFlight = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+        inputRef.current?.focus();
+      }
     }
-  }, [input, loading, sessionId, addMessage, resetCompletionTimer]);
+  }, [input, loading, sessionId, addMessage, processN8nOutput]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -397,6 +440,21 @@ export default function ChatPage({ builds }: Props) {
                 }} />
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Show when a request is in flight but user navigated away and came back */}
+        {!loading && _requestInFlight && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.5rem 0.875rem',
+            background: 'rgba(96,165,250,0.07)',
+            border: '1px solid rgba(96,165,250,0.18)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.8125rem', color: 'var(--accent-blue)',
+          }}>
+            <span className="spinner" style={{ width: 12, height: 12, borderWidth: '2px', color: 'var(--accent-blue)', flexShrink: 0 }} />
+            Pipeline is running — waiting for n8n response…
           </div>
         )}
 

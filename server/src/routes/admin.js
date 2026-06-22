@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { loadUsers, findById, deleteUser, resetWebhookToken, safeUser } = require('../utils/users');
 const { requireAdmin } = require('../middleware/auth');
+const db = require('../db');
 
 // All admin routes require admin role
 router.use(requireAdmin);
@@ -16,13 +17,32 @@ router.get('/users', (req, res) => {
 router.get('/stats', (req, res) => {
   const state = req.app.get('state');
   const users = loadUsers();
+  const { builds, wpBuilds } = db.getAllBuilds();
   res.json({
     totalUsers:       users.length,
     adminCount:       users.filter(u => u.role === 'admin').length,
     githubConnected:  users.filter(u => u.github?.selectedRepo).length,
-    totalBuilds:      (state?.builds ?? []).length,
+    totalBuilds:      builds.length,
+    totalWpBuilds:    wpBuilds.length,
+    totalErrors:      db.getErrors(500).length,
     uptimeSeconds:    Math.floor(process.uptime()),
+    memoryMB:         Math.round(process.memoryUsage().rss / 1024 / 1024),
   });
+});
+
+// GET /api/admin/errors?limit=100
+router.get('/errors', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
+  const source = req.query.source;
+  let errors = db.getErrors(500);
+  if (source) errors = errors.filter(e => e.source === source);
+  res.json({ errors: errors.slice(0, limit), total: errors.length });
+});
+
+// DELETE /api/admin/errors
+router.delete('/errors', (req, res) => {
+  db.clearErrors();
+  res.json({ success: true });
 });
 
 // DELETE /api/admin/users/:id

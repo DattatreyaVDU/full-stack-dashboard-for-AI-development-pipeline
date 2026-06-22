@@ -3,8 +3,9 @@ const router  = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const fs   = require('fs');
 const path = require('path');
-const { Octokit }          = require('@octokit/rest');
+const { Octokit }            = require('@octokit/rest');
 const { findByWebhookToken } = require('../utils/users');
+const db                     = require('../db');
 
 // All generated files land here: <project-root>/projects/<projectName>/
 const PROJECTS_DIR = path.join(__dirname, '..', '..', '..', 'projects');
@@ -187,6 +188,7 @@ router.post('/n8n', (req, res) => {
   try {
     build = normalizeBuild(payload);
   } catch (err) {
+    db.addError({ source: 'webhook', message: `Normalisation failed: ${err.message}`, buildId: null });
     return res.status(422).json({ success: false, error: `Normalisation failed: ${err.message}` });
   }
 
@@ -211,6 +213,9 @@ router.post('/n8n', (req, res) => {
   // ── Persist in-memory (cap at 50 builds) ────────────────────────────────────
   state.builds.unshift(build);
   if (state.builds.length > 50) state.builds.pop();
+
+  // ── Persist to disk so builds survive server restarts ───────────────────────
+  db.addBuild(build, 'web');
 
   // ── Update shared dashboard state ───────────────────────────────────────────
   // updateState also calls io.emit('state:update', dashboardState) internally.
@@ -273,6 +278,9 @@ router.post('/wp', (req, res) => {
   state.wpBuilds = state.wpBuilds || [];
   state.wpBuilds.unshift(build);
   if (state.wpBuilds.length > 50) state.wpBuilds.pop();
+
+  // Persist to disk
+  db.addBuild(build, 'wordpress');
 
   updateState({ latestWpBuild: build });
 

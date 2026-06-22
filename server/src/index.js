@@ -12,9 +12,11 @@ const wordpressRoutes  = require('./routes/wordpress');
 const deployRoutes     = require('./routes/deploy');
 const n8nRoutes        = require('./routes/n8n');
 const downloadRoutes   = require('./routes/download');
+const projectsRoutes   = require('./routes/projects');
 const authRoutes        = require('./routes/auth');
 const githubOauthRoutes = require('./routes/github-oauth');
 const adminRoutes       = require('./routes/admin');
+const db               = require('./db');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -48,21 +50,24 @@ app.use('/api/wordpress',     wordpressRoutes);
 app.use('/api/deploy',        deployRoutes);
 app.use('/api/n8n',           n8nRoutes);
 app.use('/api/download',      downloadRoutes);
+app.use('/api/projects',      projectsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// In-memory state (replace with DB for production)
+// Restore persisted builds from disk so state survives server restarts
+const { builds: savedBuilds, wpBuilds: savedWpBuilds } = db.getAllBuilds();
+
 let dashboardState = {
-  latestBuild:   null,
-  latestWpBuild: null,
+  latestBuild:   savedBuilds[0]   ?? null,
+  latestWpBuild: savedWpBuilds[0] ?? null,
   pipeline: {
     n8n: 'idle', webhook: 'idle', github: 'idle',
     vscode: 'idle', wordpress: 'idle', deploy: 'idle',
   },
-  builds:   [],   // Web pipeline builds
-  wpBuilds: [],   // WordPress pipeline builds
+  builds:   savedBuilds,   // Web pipeline builds (restored from disk)
+  wpBuilds: savedWpBuilds, // WordPress pipeline builds (restored from disk)
 };
 
 app.get('/api/state', (req, res) => res.json(dashboardState));

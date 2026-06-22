@@ -33,6 +33,7 @@ router.post('/chat', async (req, res) => {
         chatInput: message,
         sessionId: sessionId || 'dashboard-default',
       }),
+      signal: AbortSignal.timeout(480000), // 8 minutes — covers full pipeline
     });
 
     // Read the raw response body regardless of status

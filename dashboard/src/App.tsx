@@ -16,10 +16,11 @@ import SettingsPage   from './pages/SettingsPage';
 import ChatPage       from './pages/ChatPage';
 import LoginPage      from './pages/LoginPage';
 import RegisterPage   from './pages/RegisterPage';
-import AdminPage      from './pages/AdminPage';
-import ProfilePage    from './pages/ProfilePage';
-import AuthGuard      from './components/AuthGuard';
-import { useAuth }    from './store/useAuth';
+import AdminPage         from './pages/AdminPage';
+import ProfilePage       from './pages/ProfilePage';
+import FileExplorerPage  from './pages/FileExplorerPage';
+import AuthGuard         from './components/AuthGuard';
+import { useAuth }       from './store/useAuth';
 
 function AppInner() {
   const { toast } = useToast();
@@ -80,6 +81,7 @@ function AppInner() {
                   <Route path="/github"  element={<GitHubPage latestBuild={state.latestBuild} builds={state.builds} onPipelineStep={handlePipelineStep} />} />
                   <Route path="/wordpress" element={<WordPressPage latestBuild={state.latestWpBuild ?? state.latestBuild} builds={state.wpBuilds.length > 0 ? state.wpBuilds : state.builds} onPipelineStep={handlePipelineStep} />} />
                   <Route path="/deploy"   element={<DeployPage pipeline={state.pipeline} deployLogs={deployLogs} onClearLogs={clearDeployLogs} />} />
+                  <Route path="/files"    element={<FileExplorerPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/profile"  element={<ProfilePage />} />
                   <Route path="/admin"    element={user?.role === 'admin' ? <AdminPage /> : <DashboardPage state={state} />} />
