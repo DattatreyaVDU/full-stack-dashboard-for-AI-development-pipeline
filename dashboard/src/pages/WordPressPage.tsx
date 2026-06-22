@@ -63,7 +63,6 @@ export default function WordPressPage({ latestBuild, builds, onPipelineStep }: P
         projectName: activeProject,
         pages,
         globalContext: latestBuild?.rawPayload?.global_context ?? {},
-        githubRepo: user?.github?.selectedRepo ?? undefined,
       });
       setZipBlob(blob);
       onPipelineStep('wordpress', 'done');

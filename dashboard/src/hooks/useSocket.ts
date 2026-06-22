@@ -9,6 +9,7 @@ interface SocketHandlers {
   onPipelineStep?: (data: { step: string; status: string; error?: string }) => void;
   onDeployLog?: (log: DeployLog) => void;
   onVSCodeOpen?: (data: { filePath: string }) => void;
+  onChatResponse?: (data: { sessionId: string; output: string }) => void;
 }
 
 export function useSocket(handlers: SocketHandlers) {
@@ -57,6 +58,10 @@ export function useSocket(handlers: SocketHandlers) {
       handlersRef.current.onVSCodeOpen?.(data);
       // Open VS Code via URL protocol
       window.location.href = `vscode://file/${data.filePath}`;
+    });
+
+    socketRef.current.on('chat:response', (data: { sessionId: string; output: string }) => {
+      handlersRef.current.onChatResponse?.(data);
     });
 
     return socketRef.current;

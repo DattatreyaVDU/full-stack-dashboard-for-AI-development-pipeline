@@ -63,6 +63,15 @@ router.post('/chat', async (req, res) => {
       data = { output: rawText };
     }
 
+    // n8n is running in async mode — it acknowledged the request but the Lead PM
+    // response will arrive separately via POST /api/webhook/chat-response.
+    // Return { processing: true } so the frontend knows to wait for the socket event.
+    if (data.executionStarted === true || data.executionId) {
+      updateState({ pipeline: { n8n: 'running' } });
+      io.emit('pipeline:step', { step: 'n8n', status: 'running' });
+      return res.json({ processing: true, executionId: data.executionId });
+    }
+
     const output = data.output ?? data.text ?? data.message ?? rawText ?? 'No response from n8n.';
 
     updateState({ pipeline: { n8n: 'done' } });

@@ -136,14 +136,14 @@ export default function ProfilePage() {
         user={user}
         headers={headers()}
         onSuccess={async () => { await refreshUser(); showToast('Profile updated successfully'); }}
-        onError={(msg) => showToast(msg, false)}
+        onError={(msg: string) => showToast(msg, false)}
       />
 
       {/* ── Change Password ── */}
       <PasswordSection
         headers={headers()}
         onSuccess={() => showToast('Password changed successfully')}
-        onError={(msg) => showToast(msg, false)}
+        onError={(msg: string) => showToast(msg, false)}
       />
 
       {/* ── GitHub Integration ── */}
@@ -151,8 +151,8 @@ export default function ProfilePage() {
         user={user}
         headers={headers()}
         getToken={getToken}
-        onSuccess={async (msg) => { await refreshUser(); showToast(msg); }}
-        onError={(msg) => showToast(msg, false)}
+        onSuccess={async (msg: string) => { await refreshUser(); showToast(msg); }}
+        onError={(msg: string) => showToast(msg, false)}
       />
 
       {/* ── Webhook URL ── */}

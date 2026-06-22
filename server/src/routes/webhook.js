@@ -318,6 +318,21 @@ router.get('/n8n', (req, res) => {
   });
 });
 
+// ─── POST /api/webhook/chat-response ─────────────────────────────────────────
+// n8n sends the Lead PM's conversational reply here so the dashboard can show it.
+// Add an HTTP Request node in n8n (parallel to Tech Lead) pointing to this endpoint:
+//   POST https://<your-backend>/api/webhook/chat-response
+//   Body: { "sessionId": "{{ $('When chat message received').item.json.sessionId }}",
+//           "output":    "{{ $('Lead Project Manager').item.json.output }}" }
+router.post('/chat-response', (req, res) => {
+  const io     = req.app.get('io');
+  const { sessionId, output } = req.body;
+  if (!output) return res.status(400).json({ error: 'output is required' });
+  io.emit('chat:response', { sessionId: sessionId || '', output: String(output) });
+  console.log(`[Webhook] chat:response session=${sessionId} → "${String(output).slice(0, 80)}"`);
+  res.json({ ok: true });
+});
+
 // ─── GET /api/webhook/builds ──────────────────────────────────────────────────
 // Returns stored build history (latest first).
 router.get('/builds', (req, res) => {

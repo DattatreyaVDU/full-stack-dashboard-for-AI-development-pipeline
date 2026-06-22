@@ -50,6 +50,9 @@ function AppInner() {
     onVSCodeOpen: ({ filePath }) => {
       toast('VS Code opening...', 'info', filePath);
     },
+    onChatResponse: ({ output }) => {
+      window.dispatchEvent(new CustomEvent('n8n:chat-response', { detail: { output } }));
+    },
   });
 
   const handlePipelineStep = (step: string, status: string) => {

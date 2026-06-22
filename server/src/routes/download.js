@@ -26,33 +26,46 @@ function collectProjects(state) {
   }
 
   const VALID_EXTS = new Set([
-    '.php', '.css', '.js', '.html', '.htm',
-    '.json', '.txt', '.pot', '.png', '.jpg', '.jpeg', '.svg', '.webp',
-    '.md', '.xml', '.htaccess',
+    '.php', '.css', '.js', '.ts', '.tsx', '.jsx',
+    '.html', '.htm', '.json', '.txt', '.pot',
+    '.png', '.jpg', '.jpeg', '.svg', '.webp',
+    '.md', '.xml', '.htaccess', '.env', '.sh', '.yml', '.yaml',
   ]);
 
   function isGarbage(fname) {
-    if (fname.length > 80) return true;
+    // Reject impossibly long filenames or double-dash CLI artifacts
+    if (fname.length > 120) return true;
     if (/^[a-zA-Z][-]{2}/.test(fname)) return true;
-    if (/^\d{2}_/.test(fname) && fname.endsWith('.md')) return true;
     return false;
   }
 
-  // ── 1. Scan PROJECTS_DIR on disk ────────────────────────────────────────────
+  // ── 1. Scan PROJECTS_DIR on disk (recursive — preserves src/pages/ structure) ──
+  function walkRecursive(dir, projRoot, proj) {
+    let items;
+    try { items = fs.readdirSync(dir); } catch { return; }
+    for (const name of items) {
+      const fullPath = path.join(dir, name);
+      let stat;
+      try { stat = fs.statSync(fullPath); } catch { continue; }
+      if (stat.isDirectory()) {
+        walkRecursive(fullPath, projRoot, proj);
+      } else {
+        const ext     = path.extname(name).toLowerCase();
+        const relPath = path.relative(projRoot, fullPath).replace(/\\/g, '/');
+        if (VALID_EXTS.has(ext) && !isGarbage(name)) {
+          proj.files.set(relPath, { name: relPath, diskPath: fullPath });
+        }
+      }
+    }
+  }
+
   if (fs.existsSync(PROJECTS_DIR)) {
     try {
       fs.readdirSync(PROJECTS_DIR).forEach(name => {
         const fullPath = path.join(PROJECTS_DIR, name);
         if (!fs.statSync(fullPath).isDirectory()) return;
         const proj = ensureProject(name);
-        fs.readdirSync(fullPath)
-          .filter(f => {
-            const ext = path.extname(f).toLowerCase();
-            return VALID_EXTS.has(ext) && !isGarbage(f);
-          })
-          .forEach(f => {
-            proj.files.set(f, { name: f, diskPath: path.join(fullPath, f) });
-          });
+        walkRecursive(fullPath, fullPath, proj);
       });
     } catch (e) {
       console.error('[Download] PROJECTS_DIR scan error:', e.message);
@@ -139,15 +152,19 @@ router.get('/', (req, res) => {
 
   const zip = new AdmZip();
 
-  proj.files.forEach((entry, fileName) => {
+  proj.files.forEach((entry, relPath) => {
     try {
+      // Preserve directory structure inside the ZIP (e.g. src/pages/HomePage.tsx)
+      const zipDir  = path.dirname(relPath).replace(/\\/g, '/');
+      const zipFile = path.basename(relPath);
+      const zipPath = zipDir === '.' ? '' : zipDir;
       if (entry.diskPath) {
-        zip.addLocalFile(entry.diskPath, '', fileName);
+        zip.addLocalFile(entry.diskPath, zipPath, zipFile);
       } else if (entry.content) {
-        zip.addFile(fileName, Buffer.from(entry.content, 'utf8'));
+        zip.addFile(relPath, Buffer.from(entry.content, 'utf8'));
       }
     } catch (e) {
-      console.error(`[Download] Failed to add ${fileName}:`, e.message);
+      console.error(`[Download] Failed to add ${relPath}:`, e.message);
     }
   });
 

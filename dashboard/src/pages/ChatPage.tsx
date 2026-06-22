@@ -229,6 +229,26 @@ export default function ChatPage({ builds }: Props) {
     }
   }, [addMessage, resetCompletionTimer]);
 
+  // Listen for async PM responses relayed from n8n via Socket.IO → window event
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { output } = (e as CustomEvent<{ output: string }>).detail;
+      setLoading(false);
+      setStarting(false);
+      // Ensure chat screen is open (covers the handleStart async path)
+      setChatStarted(true);
+      localStorage.setItem(STORAGE_STARTED, 'true');
+      if (isMountedRef.current) {
+        processN8nOutput(output);
+        setTimeout(() => inputRef.current?.focus(), 100);
+      } else {
+        _pendingOutput = output;
+      }
+    };
+    window.addEventListener('n8n:chat-response', handler);
+    return () => window.removeEventListener('n8n:chat-response', handler);
+  }, [processN8nOutput]);
+
   // On mount: consume any response that arrived while we were on another page
   useEffect(() => {
     isMountedRef.current = true;
@@ -252,11 +272,20 @@ export default function ChatPage({ builds }: Props) {
     setStarting(true);
     try {
       const data = await n8nApi.chat('hi', sessionId);
+      if (data.processing) {
+        // n8n is async — PM response will arrive via 'n8n:chat-response' window event.
+        // Open chat now so the user sees the input area while waiting.
+        setChatStarted(true);
+        localStorage.setItem(STORAGE_STARTED, 'true');
+        // starting stays true (cleared by socket handler)
+        return;
+      }
       const reply: string = data.output ?? 'System ready. Please describe the software idea you want to build.';
       setMessages([{ id: 'greeting', role: 'assistant', text: reply, ts: new Date() }]);
     } catch {
       setMessages([{ id: 'greeting', role: 'assistant', text: 'System ready. Please describe the software idea you want to build.', ts: new Date() }]);
     } finally {
+      // Only finalise if we didn't early-return on processing
       setChatStarted(true);
       localStorage.setItem(STORAGE_STARTED, 'true');
       setStarting(false);
@@ -285,10 +314,16 @@ export default function ChatPage({ builds }: Props) {
     addMessage('user', msg);
     setLoading(true);
     _requestInFlight = true;
+    let isProcessing = false;
     try {
       const data = await n8nApi.chat(msg, sessionId);
+      if (data.processing) {
+        // n8n async — PM response arrives via 'n8n:chat-response' window event.
+        // Keep loading=true; the socket handler will clear it.
+        isProcessing = true;
+        return;
+      }
       const reply: string = data.output ?? 'No response from n8n.';
-      // Store at module level first — if component is unmounted the mount effect will consume it
       _pendingOutput = reply;
       _pendingErrText = null;
       if (isMountedRef.current) {
@@ -310,7 +345,7 @@ export default function ChatPage({ builds }: Props) {
       }
     } finally {
       _requestInFlight = false;
-      if (isMountedRef.current) {
+      if (isMountedRef.current && !isProcessing) {
         setLoading(false);
         inputRef.current?.focus();
       }
