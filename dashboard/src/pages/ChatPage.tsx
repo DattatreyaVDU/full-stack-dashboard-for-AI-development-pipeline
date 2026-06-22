@@ -267,31 +267,16 @@ export default function ChatPage({ builds }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Click "Start New Project" → send "hi" to n8n → show greeting → open chat
-  const handleStart = useCallback(async () => {
-    setStarting(true);
-    try {
-      const data = await n8nApi.chat('hi', sessionId);
-      if (data.processing) {
-        // n8n is async — PM response will arrive via 'n8n:chat-response' window event.
-        // Open chat now so the user sees the input area while waiting.
-        setChatStarted(true);
-        localStorage.setItem(STORAGE_STARTED, 'true');
-        // starting stays true (cleared by socket handler)
-        return;
-      }
-      const reply: string = data.output ?? 'System ready. Please describe the software idea you want to build.';
-      setMessages([{ id: 'greeting', role: 'assistant', text: reply, ts: new Date() }]);
-    } catch {
-      setMessages([{ id: 'greeting', role: 'assistant', text: 'System ready. Please describe the software idea you want to build.', ts: new Date() }]);
-    } finally {
-      // Only finalise if we didn't early-return on processing
-      setChatStarted(true);
-      localStorage.setItem(STORAGE_STARTED, 'true');
-      setStarting(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [sessionId]);
+  // Click "Start New Project" → show greeting instantly, no n8n round-trip needed
+  const handleStart = useCallback(() => {
+    setMessages([{
+      id: 'greeting', role: 'assistant', ts: new Date(),
+      text: 'Hi there! 👋\nMy name is Nathan. How can I assist you today?',
+    }]);
+    setChatStarted(true);
+    localStorage.setItem(STORAGE_STARTED, 'true');
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
 
   // "+ New Chat" → wipe everything and go back to landing
   const startNewChat = useCallback(() => {
