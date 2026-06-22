@@ -267,8 +267,8 @@ export default function ChatPage({ builds }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Click "Start New Project" → show greeting instantly, no n8n round-trip needed
-  const handleStart = useCallback(() => {
+  // Click "Start New Project" → show greeting instantly, then wake n8n in background
+  const handleStart = useCallback(async () => {
     setMessages([{
       id: 'greeting', role: 'assistant', ts: new Date(),
       text: 'Hi there! 👋\nMy name is Nathan. How can I assist you today?',
@@ -276,7 +276,9 @@ export default function ChatPage({ builds }: Props) {
     setChatStarted(true);
     localStorage.setItem(STORAGE_STARTED, 'true');
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, []);
+    // Wake up n8n — Lead PM will reply "System ready..." via socket
+    try { await n8nApi.chat('hi', sessionId); } catch { /* silent */ }
+  }, [sessionId]);
 
   // "+ New Chat" → wipe everything and go back to landing
   const startNewChat = useCallback(() => {
