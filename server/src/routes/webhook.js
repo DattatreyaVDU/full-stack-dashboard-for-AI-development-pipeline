@@ -27,11 +27,12 @@ function isGarbageFilename(baseName) {
   return false;
 }
 
-function saveFileToDisk(build) {
+function saveFileToDisk(build, userId = null) {
   if (!build.content) return null;
   try {
-    const safeName = build.projectName.replace(/[^a-z0-9_-]/gi, '_');
-    const dir = path.join(PROJECTS_DIR, safeName);
+    const safeName  = build.projectName.replace(/[^a-z0-9_-]/gi, '_');
+    const userSegment = userId || 'shared';
+    const dir = path.join(PROJECTS_DIR, userSegment, safeName);
     fs.mkdirSync(dir, { recursive: true });
 
     const rawFile  = build.filePath || build.pageName || `page_${build.pageId}`;
@@ -100,6 +101,7 @@ function normalizeBuild(payload) {
       filePath:       files[0] || clean(payload.pageName, '') || folder,
       folder,
       content,
+      sessionId:      clean(payload.sessionId, ''),
       generatedFiles: files,
       rawPayload:     payload,
       status:         'received',
@@ -117,6 +119,7 @@ function normalizeBuild(payload) {
     filePath:       clean(payload.archivo_creado, ''),
     folder:         clean(payload.carpeta, ''),
     content,
+    sessionId:      clean(payload.sessionId, ''),
     generatedFiles: [],
     rawPayload:     payload,
     status:         'received',
@@ -162,9 +165,8 @@ async function pushToGitHub(user, build) {
 // ─── POST /api/webhook/n8n ────────────────────────────────────────────────────
 // Receives build results from n8n and broadcasts them via Socket.IO.
 router.post('/n8n', (req, res) => {
-  const io           = req.app.get('io');
-  const updateState  = req.app.get('updateState');
-  const state        = req.app.get('state');
+  const io          = req.app.get('io');
+  const updateState = req.app.get('updateState');
 
   const payload = req.body;
 
@@ -192,11 +194,18 @@ router.post('/n8n', (req, res) => {
     return res.status(422).json({ success: false, error: `Normalisation failed: ${err.message}` });
   }
 
-  // ── Save file content to local disk ─────────────────────────────────────────
-  const localFilePath = saveFileToDisk(build);
+  // ── Resolve userId from sessionId ────────────────────────────────────────────
+  const sessionUserMap = req.app.get('sessionUserMap');
+  const userId = (build.sessionId && sessionUserMap)
+    ? (sessionUserMap.get(build.sessionId) ?? null)
+    : null;
+  build.userId = userId;
+
+  // ── Save file content to disk (user-namespaced path) ─────────────────────────
+  const localFilePath = saveFileToDisk(build, userId);
   if (localFilePath) build.localFilePath = localFilePath;
 
-  // ── Push to user's GitHub repo (if webhook token provided) ──────────────────
+  // ── Push to user's GitHub repo ───────────────────────────────────────────────
   const userToken = req.query.userToken || req.body.userToken;
   if (userToken) {
     const user = findByWebhookToken(userToken);
@@ -204,32 +213,30 @@ router.post('/n8n', (req, res) => {
       pushToGitHub(user, build).then(ghUrl => {
         if (ghUrl) {
           build.githubUrl = ghUrl;
-          io.emit('build:update', build);
+          const room = 'user:' + user.id;
+          io.to(room).emit('build:update', build);
         }
       });
     }
   }
 
-  // ── Persist in-memory (cap at 50 builds) ────────────────────────────────────
-  state.builds.unshift(build);
-  if (state.builds.length > 50) state.builds.pop();
-
-  // ── Persist to disk so builds survive server restarts ───────────────────────
+  // ── Persist to disk so builds survive server restarts ────────────────────────
   db.addBuild(build, 'web');
 
-  // ── Update shared dashboard state ───────────────────────────────────────────
-  // updateState also calls io.emit('state:update', dashboardState) internally.
-  updateState({
-    latestBuild: build,
-    pipeline: { n8n: 'done', webhook: 'done' },
-  });
+  // ── Update pipeline status ───────────────────────────────────────────────────
+  updateState({ pipeline: { n8n: 'done', webhook: 'done' } });
+  io.emit('pipeline:step', { step: 'webhook', status: 'done' });
 
-  // ── Emit Socket.IO events ───────────────────────────────────────────────────
-  io.emit('build:update',    build);          // primary event (new)
-  io.emit('webhook:received', build);         // backward compat — frontend already listens
-  io.emit('pipeline:step',  { step: 'webhook', status: 'done' });
+  // ── Emit build only to owning user (or broadcast if unknown) ─────────────────
+  if (userId) {
+    io.to('user:' + userId).emit('build:update',    build);
+    io.to('user:' + userId).emit('webhook:received', build);
+  } else {
+    io.emit('build:update',    build);
+    io.emit('webhook:received', build);
+  }
 
-  console.log(`[Webhook] ${build.projectName} | ${build.pageName} | id=${build.id}`);
+  console.log(`[Webhook] ${build.projectName} | ${build.pageName} | user=${userId ?? 'unknown'} | id=${build.id}`);
 
   res.status(200).json({ success: true, buildId: build.id });
 });
@@ -239,7 +246,6 @@ router.post('/n8n', (req, res) => {
 router.post('/wp', (req, res) => {
   const io          = req.app.get('io');
   const updateState = req.app.get('updateState');
-  const state       = req.app.get('state');
   const payload     = req.body;
 
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -260,7 +266,14 @@ router.post('/wp', (req, res) => {
     return res.status(422).json({ success: false, error: `Normalisation failed: ${err.message}` });
   }
 
-  const localFilePath = saveFileToDisk(build);
+  // Resolve userId from sessionId
+  const sessionUserMap = req.app.get('sessionUserMap');
+  const userId = (build.sessionId && sessionUserMap)
+    ? (sessionUserMap.get(build.sessionId) ?? null)
+    : null;
+  build.userId = userId;
+
+  const localFilePath = saveFileToDisk(build, userId);
   if (localFilePath) build.localFilePath = localFilePath;
 
   // Push to GitHub if userToken provided
@@ -269,53 +282,38 @@ router.post('/wp', (req, res) => {
     const user = findByWebhookToken(userToken);
     if (user) {
       pushToGitHub(user, build).then(ghUrl => {
-        if (ghUrl) { build.githubUrl = ghUrl; io.emit('wpbuild:update', build); }
+        if (ghUrl) {
+          build.githubUrl = ghUrl;
+          io.to('user:' + user.id).emit('wpbuild:update', build);
+        }
       });
     }
   }
 
-  // Store in wpBuilds (separate from web builds)
-  state.wpBuilds = state.wpBuilds || [];
-  state.wpBuilds.unshift(build);
-  if (state.wpBuilds.length > 50) state.wpBuilds.pop();
-
   // Persist to disk
   db.addBuild(build, 'wordpress');
 
-  updateState({ latestWpBuild: build });
+  updateState({ pipeline: { wordpress: 'done' } });
 
-  io.emit('wpbuild:update', build);
+  if (userId) {
+    io.to('user:' + userId).emit('wpbuild:update', build);
+  } else {
+    io.emit('wpbuild:update', build);
+  }
   io.emit('pipeline:step', { step: 'wordpress', status: 'done' });
 
-  console.log(`[WP Webhook] ${build.projectName} | ${build.pageName} | id=${build.id}`);
+  console.log(`[WP Webhook] ${build.projectName} | ${build.pageName} | user=${userId ?? 'unknown'} | id=${build.id}`);
   res.status(200).json({ success: true, buildId: build.id });
 });
 
 // ─── GET /api/webhook/wp ──────────────────────────────────────────────────────
 router.get('/wp', (req, res) => {
-  const state = req.app.get('state');
-  res.json({
-    status:     'ready',
-    method:     'This endpoint only accepts POST requests from the WP n8n pipeline.',
-    wpBuilds:   (state.wpBuilds || []).length,
-    latestWpBuild: state.latestWpBuild
-      ? { projectName: state.latestWpBuild.projectName, timestamp: state.latestWpBuild.timestamp }
-      : null,
-  });
+  res.json({ status: 'ready', method: 'This endpoint only accepts POST requests from the WP n8n pipeline.' });
 });
 
 // ─── GET /api/webhook/n8n ────────────────────────────────────────────────────
-// Health-check so hitting the URL in a browser gives a useful response.
 router.get('/n8n', (req, res) => {
-  const state = req.app.get('state');
-  res.json({
-    status:     'ready',
-    method:     'This endpoint only accepts POST requests from n8n.',
-    buildsKept: state.builds.length,
-    latestBuild: state.latestBuild
-      ? { projectName: state.latestBuild.projectName, timestamp: state.latestBuild.timestamp }
-      : null,
-  });
+  res.json({ status: 'ready', method: 'This endpoint only accepts POST requests from n8n.' });
 });
 
 // ─── POST /api/webhook/chat-response ─────────────────────────────────────────
@@ -328,16 +326,25 @@ router.post('/chat-response', (req, res) => {
   const io     = req.app.get('io');
   const { sessionId, output } = req.body;
   if (!output) return res.status(400).json({ error: 'output is required' });
-  io.emit('chat:response', { sessionId: sessionId || '', output: String(output) });
-  console.log(`[Webhook] chat:response session=${sessionId} → "${String(output).slice(0, 80)}"`);
+
+  // Route chat response only to the user who owns this session
+  const sessionUserMap = req.app.get('sessionUserMap');
+  const userId = sessionId ? sessionUserMap?.get(sessionId) : null;
+
+  if (userId) {
+    io.to('user:' + userId).emit('chat:response', { sessionId: sessionId || '', output: String(output) });
+  } else {
+    io.emit('chat:response', { sessionId: sessionId || '', output: String(output) });
+  }
+  console.log(`[Webhook] chat:response session=${sessionId} user=${userId ?? 'broadcast'} → "${String(output).slice(0, 80)}"`);
   res.json({ ok: true });
 });
 
 // ─── GET /api/webhook/builds ──────────────────────────────────────────────────
-// Returns stored build history (latest first).
-router.get('/builds', (req, res) => {
-  const state = req.app.get('state');
-  res.json(state.builds || []);
+const { requireAuth } = require('../middleware/auth');
+router.get('/builds', requireAuth, (req, res) => {
+  const { builds } = require('../db').getBuildsForUser(req.user.id);
+  res.json(builds);
 });
 
 module.exports = router;

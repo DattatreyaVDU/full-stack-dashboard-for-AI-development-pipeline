@@ -20,10 +20,12 @@ export function useSocket(handlers: SocketHandlers) {
   const connect = useCallback(() => {
     if (socketRef.current?.connected) return;
 
+    const token = localStorage.getItem('n8n-auth-token') ?? '';
     socketRef.current = io('/', {
-      transports: ['polling', 'websocket'],  // polling first — more reliable through Vite proxy
+      auth:                 { token },
+      transports:           ['polling', 'websocket'],
       reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
+      reconnectionDelay:    2000,
       reconnectionDelayMax: 10000,
     });
 

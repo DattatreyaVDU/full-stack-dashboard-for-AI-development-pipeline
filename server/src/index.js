@@ -5,6 +5,7 @@ const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const fileUpload = require('express-fileupload');
+const jwt = require('jsonwebtoken');
 
 const webhookRoutes    = require('./routes/webhook');
 const githubRoutes     = require('./routes/github');
@@ -17,6 +18,8 @@ const authRoutes        = require('./routes/auth');
 const githubOauthRoutes = require('./routes/github-oauth');
 const adminRoutes       = require('./routes/admin');
 const db               = require('./db');
+const { findById }     = require('./utils/users');
+const { JWT_SECRET, requireAuth } = require('./middleware/auth');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -32,8 +35,28 @@ const io = new Server(httpServer, {
   },
 });
 
+// ── Socket.IO auth middleware ─────────────────────────────────────────────────
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication required'));
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    const user    = findById(payload.sub);
+    if (!user) return next(new Error('User not found'));
+    socket.userId   = user.id;
+    socket.userName = user.name;
+    next();
+  } catch {
+    next(new Error('Invalid or expired token'));
+  }
+});
+
 // Make io available to routes
 app.set('io', io);
+
+// sessionId → userId map (populated by POST /api/n8n/chat)
+const sessionUserMap = new Map();
+app.set('sessionUserMap', sessionUserMap);
 
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '50mb' }));
@@ -56,53 +79,63 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Restore persisted builds from disk so state survives server restarts
-const { builds: savedBuilds, wpBuilds: savedWpBuilds } = db.getAllBuilds();
-
-let dashboardState = {
-  latestBuild:   savedBuilds[0]   ?? null,
-  latestWpBuild: savedWpBuilds[0] ?? null,
-  pipeline: {
-    n8n: 'idle', webhook: 'idle', github: 'idle',
-    vscode: 'idle', wordpress: 'idle', deploy: 'idle',
-  },
-  builds:   savedBuilds,   // Web pipeline builds (restored from disk)
-  wpBuilds: savedWpBuilds, // WordPress pipeline builds (restored from disk)
+// ── Per-user /api/state ───────────────────────────────────────────────────────
+const sharedPipeline = {
+  n8n: 'idle', webhook: 'idle', github: 'idle',
+  vscode: 'idle', wordpress: 'idle', deploy: 'idle',
 };
 
-app.get('/api/state', (req, res) => res.json(dashboardState));
+app.get('/api/state', requireAuth, (req, res) => {
+  const { builds, wpBuilds } = db.getBuildsForUser(req.user.id);
+  res.json({
+    pipeline:      sharedPipeline,
+    builds,
+    wpBuilds,
+    latestBuild:   builds[0]   ?? null,
+    latestWpBuild: wpBuilds[0] ?? null,
+  });
+});
 
-app.post('/api/state/reset', (req, res) => {
-  dashboardState.pipeline = {
+app.post('/api/state/reset', requireAuth, (req, res) => {
+  Object.assign(sharedPipeline, {
     n8n: 'idle', webhook: 'idle', github: 'idle',
     vscode: 'idle', wordpress: 'idle', deploy: 'idle',
-  };
-  io.emit('state:update', dashboardState);
+  });
+  io.emit('pipeline:step', { step: 'reset', status: 'idle' });
   res.json({ success: true });
 });
 
-// WP-specific state endpoint
-app.get('/api/state/wp', (req, res) => res.json({
-  latestWpBuild: dashboardState.latestWpBuild,
-  wpBuilds:      dashboardState.wpBuilds,
-}));
-
-// Expose state mutator to routes
-app.set('state', dashboardState);
-app.set('updateState', (patch) => {
-  Object.assign(dashboardState, patch);
-  if (patch.pipeline) {
-    Object.assign(dashboardState.pipeline, patch.pipeline);
-  }
-  io.emit('state:update', dashboardState);
+app.get('/api/state/wp', requireAuth, (req, res) => {
+  const { wpBuilds } = db.getBuildsForUser(req.user.id);
+  res.json({ latestWpBuild: wpBuilds[0] ?? null, wpBuilds });
 });
 
+// Expose state mutator to routes (pipeline status only — builds go to user rooms)
+app.set('updateState', (patch, targetUserId = null) => {
+  if (patch.pipeline) {
+    Object.assign(sharedPipeline, patch.pipeline);
+  }
+  // Broadcast pipeline status to all connected clients
+  io.emit('state:update', { pipeline: sharedPipeline });
+});
+
+// ── Socket.IO connection ──────────────────────────────────────────────────────
 io.on('connection', (socket) => {
-  console.log(`[WS] Client connected: ${socket.id}`);
-  socket.emit('state:update', dashboardState);
+  socket.join('user:' + socket.userId);
+  console.log(`[WS] Connected: ${socket.id} (user: ${socket.userId})`);
+
+  // Send this user's builds + shared pipeline status on connect
+  const { builds, wpBuilds } = db.getBuildsForUser(socket.userId);
+  socket.emit('state:update', {
+    pipeline:      sharedPipeline,
+    builds,
+    wpBuilds,
+    latestBuild:   builds[0]   ?? null,
+    latestWpBuild: wpBuilds[0] ?? null,
+  });
 
   socket.on('disconnect', () => {
-    console.log(`[WS] Client disconnected: ${socket.id}`);
+    console.log(`[WS] Disconnected: ${socket.id} (user: ${socket.userId})`);
   });
 });
 
@@ -116,6 +149,6 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`\n🚀 Dashboard server running on http://localhost:${PORT}`);
-  console.log(`📡 WebSocket ready`);
+  console.log(`📡 WebSocket ready (JWT auth enabled)`);
   console.log(`🔗 n8n webhook endpoint: http://localhost:${PORT}/api/webhook/n8n\n`);
 });

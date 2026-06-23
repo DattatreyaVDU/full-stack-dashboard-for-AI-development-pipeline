@@ -3,8 +3,10 @@ const router  = express.Router();
 const fs      = require('fs');
 const path    = require('path');
 const AdmZip  = require('adm-zip');
+const { requireAuth } = require('../middleware/auth');
+const db = require('../db');
 
-// Files land in PROJECTS_DIR — set via env var, falls back to <repo-root>/projects/
+// Files land in PROJECTS_DIR/{userId}/ — namespaced per user
 const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(__dirname, '..', '..', '..', 'projects');
 
 /**
@@ -15,7 +17,7 @@ const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(__dirname, '..', '..'
  *
  * Returns: Map<projectSafeName, { name, files: [{name, content?, diskPath?}] }>
  */
-function collectProjects(state) {
+function collectProjects(state, scanDir = PROJECTS_DIR) {
   const projectMap = new Map();
 
   function ensureProject(safeName) {
@@ -59,10 +61,10 @@ function collectProjects(state) {
     }
   }
 
-  if (fs.existsSync(PROJECTS_DIR)) {
+  if (fs.existsSync(scanDir)) {
     try {
-      fs.readdirSync(PROJECTS_DIR).forEach(name => {
-        const fullPath = path.join(PROJECTS_DIR, name);
+      fs.readdirSync(scanDir).forEach(name => {
+        const fullPath = path.join(scanDir, name);
         if (!fs.statSync(fullPath).isDirectory()) return;
         const proj = ensureProject(name);
         walkRecursive(fullPath, fullPath, proj);
@@ -116,9 +118,14 @@ function collectProjects(state) {
 }
 
 // ── GET /api/download/list ───────────────────────────────────────────────────
-router.get('/list', (req, res) => {
-  const state      = req.app.get('state');
-  const projectMap = collectProjects(state);
+router.get('/list', requireAuth, (req, res) => {
+  const userId     = req.user.id;
+  const { builds } = db.getBuildsForUser(userId);
+  const userState  = { builds };
+
+  // Point collectProjects at the user's subdirectory
+  const userProjectsDir = path.join(PROJECTS_DIR, userId);
+  const projectMap = collectProjects(userState, userProjectsDir);
 
   const projects = [...projectMap.values()]
     .filter(p => p.files.size > 0)
@@ -132,15 +139,19 @@ router.get('/list', (req, res) => {
 });
 
 // ── GET /api/download?project=<folderName> ───────────────────────────────────
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
   const projectParam = req.query.project;
   if (!projectParam) {
     return res.status(400).json({ error: 'project query param is required' });
   }
 
+  const userId     = req.user.id;
   const safeName   = path.basename(projectParam).replace(/\.\./g, '');
-  const state      = req.app.get('state');
-  const projectMap = collectProjects(state);
+  const { builds } = db.getBuildsForUser(userId);
+  const userState  = { builds };
+
+  const userProjectsDir = path.join(PROJECTS_DIR, userId);
+  const projectMap = collectProjects(userState, userProjectsDir);
   const proj       = projectMap.get(safeName);
 
   if (!proj || proj.files.size === 0) {

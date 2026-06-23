@@ -2,6 +2,13 @@ import axios from 'axios';
 
 const api = axios.create({ baseURL: '/api' });
 
+// Attach JWT to every request automatically
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('n8n-auth-token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
 export const github = {
   status: () => api.get('/github/status').then(r => r.data),
   commits: () => api.get('/github/commits').then(r => r.data),

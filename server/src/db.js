@@ -77,4 +77,12 @@ function clearErrors() {
   flush();
 }
 
-module.exports = { load, addBuild, getBuilds, getAllBuilds, addError, getErrors, clearErrors };
+function getBuildsForUser(userId) {
+  load();
+  return {
+    builds:   (cache.builds   || []).filter(b => b.userId === userId),
+    wpBuilds: (cache.wpBuilds || []).filter(b => b.userId === userId),
+  };
+}
+
+module.exports = { load, addBuild, getBuilds, getAllBuilds, getBuildsForUser, addError, getErrors, clearErrors };

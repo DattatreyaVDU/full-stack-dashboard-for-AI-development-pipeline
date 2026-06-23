@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const { requireAuth } = require('../middleware/auth');
 
 // POST /api/n8n/chat — proxies dashboard chat message to n8n chat trigger
-router.post('/chat', async (req, res) => {
+router.post('/chat', requireAuth, async (req, res) => {
   const { message, sessionId } = req.body;
+  const userId = req.user.id;
 
   if (!message) {
     return res.status(400).json({ error: 'message is required' });
@@ -19,12 +21,21 @@ router.post('/chat', async (req, res) => {
   const io          = req.app.get('io');
   const updateState = req.app.get('updateState');
 
+  // Register sessionId → userId so webhook knows which user to notify
+  if (sessionId) {
+    const sessionUserMap = req.app.get('sessionUserMap');
+    sessionUserMap.set(sessionId, userId);
+    // Auto-cleanup after 2 hours
+    setTimeout(() => sessionUserMap.delete(sessionId), 2 * 60 * 60 * 1000);
+    console.log(`[n8n] Registered session ${sessionId} → user ${userId}`);
+  }
+
   try {
     updateState({ pipeline: { n8n: 'running' } });
     io.emit('pipeline:step', { step: 'n8n', status: 'running' });
 
     console.log(`[n8n] POST ${n8nUrl}`);
-    console.log(`[n8n] Body: chatInput="${message}" sessionId="${sessionId || 'dashboard-default'}"`);
+    console.log(`[n8n] Body: chatInput="${message}" sessionId="${sessionId || 'none'}"`);
 
     const response = await fetch(n8nUrl, {
       method:  'POST',
@@ -36,7 +47,6 @@ router.post('/chat', async (req, res) => {
       signal: AbortSignal.timeout(480000), // 8 minutes — covers full pipeline
     });
 
-    // Read the raw response body regardless of status
     const rawText = await response.text();
     console.log(`[n8n] Response ${response.status}: ${rawText.slice(0, 500)}`);
 
@@ -55,7 +65,6 @@ router.post('/chat', async (req, res) => {
       });
     }
 
-    // Parse JSON — handle n8n returning plain text or empty body
     let data = {};
     try {
       data = rawText ? JSON.parse(rawText) : {};
@@ -63,9 +72,6 @@ router.post('/chat', async (req, res) => {
       data = { output: rawText };
     }
 
-    // n8n is running in async mode — it acknowledged the request but the Lead PM
-    // response will arrive separately via POST /api/webhook/chat-response.
-    // Return { processing: true } so the frontend knows to wait for the socket event.
     if (data.executionStarted === true || data.executionId || data.ok === true) {
       updateState({ pipeline: { n8n: 'running' } });
       io.emit('pipeline:step', { step: 'n8n', status: 'running' });
@@ -103,7 +109,6 @@ router.get('/status', async (req, res) => {
     return res.json({ configured: false, url: null });
   }
 
-  // Quick connectivity ping — HEAD request to the base domain
   let reachable = false;
   try {
     const baseUrl = new URL(url);
