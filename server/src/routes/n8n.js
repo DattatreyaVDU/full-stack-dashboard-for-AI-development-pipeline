@@ -1,11 +1,26 @@
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../middleware/auth');
+const { findById } = require('../utils/users');
+
+// Try to get user from token but never block the request
+function optionalAuth(req, res, next) {
+  const header = req.headers.authorization;
+  const raw    = header?.startsWith('Bearer ') ? header.slice(7) : null;
+  if (raw) {
+    try {
+      const payload = jwt.verify(raw, JWT_SECRET);
+      req.user = findById(payload.sub) ?? null;
+    } catch {}
+  }
+  next();
+}
 
 // POST /api/n8n/chat — proxies dashboard chat message to n8n chat trigger
-router.post('/chat', requireAuth, async (req, res) => {
+router.post('/chat', optionalAuth, async (req, res) => {
   const { message, sessionId } = req.body;
-  const userId = req.user.id;
+  const userId = req.user?.id ?? null;
 
   if (!message) {
     return res.status(400).json({ error: 'message is required' });
