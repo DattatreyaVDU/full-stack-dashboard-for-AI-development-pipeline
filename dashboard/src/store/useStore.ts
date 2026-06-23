@@ -17,8 +17,14 @@ export function useStore() {
   const [deployLogs, setDeployLogs] = useState<DeployLog[]>([]);
   const [serverOnline, setServerOnline] = useState(false);
 
-  const setFullState = useCallback((s: DashboardState) => {
-    setState(s);
+  const setFullState = useCallback((s: Partial<DashboardState>) => {
+    setState(prev => ({
+      ...prev,
+      ...s,
+      // Never let builds become undefined — keep existing array if server omits it
+      builds:   Array.isArray(s.builds)   ? s.builds   : prev.builds,
+      wpBuilds: Array.isArray(s.wpBuilds) ? s.wpBuilds : prev.wpBuilds,
+    }));
     setServerOnline(true);
   }, []);
 
