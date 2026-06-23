@@ -4,8 +4,8 @@ const fs      = require('fs');
 const path    = require('path');
 const AdmZip  = require('adm-zip');
 
-// Files saved by webhook.js when content arrives via HTTP Request body
-const PROJECTS_DIR = path.join(__dirname, '..', '..', '..', 'projects');
+// Files land in PROJECTS_DIR — set via env var, falls back to <repo-root>/projects/
+const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(__dirname, '..', '..', '..', 'projects');
 
 /**
  * Collect all downloadable files across three sources:

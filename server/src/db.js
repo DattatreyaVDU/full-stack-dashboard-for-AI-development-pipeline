@@ -1,7 +1,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, '..', '..', 'db.json');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', '..', 'db.json');
 
 const DEFAULTS = { builds: [], wpBuilds: [], errors: [] };
 

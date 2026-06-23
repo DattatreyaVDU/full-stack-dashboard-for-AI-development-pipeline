@@ -7,8 +7,8 @@ const { Octokit }            = require('@octokit/rest');
 const { findByWebhookToken } = require('../utils/users');
 const db                     = require('../db');
 
-// All generated files land here: <project-root>/projects/<projectName>/
-const PROJECTS_DIR = path.join(__dirname, '..', '..', '..', 'projects');
+// Files land in PROJECTS_DIR — set via env var, falls back to <repo-root>/projects/
+const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(__dirname, '..', '..', '..', 'projects');
 
 // Valid WordPress/web theme file extensions
 const VALID_THEME_EXTS = new Set([
