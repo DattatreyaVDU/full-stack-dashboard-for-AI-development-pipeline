@@ -54,6 +54,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     body:    JSON.stringify({
       chatInput: message,
       sessionId: sessionId || 'dashboard-default',
+      username:  req.user?.name || req.user?.email?.split('@')[0] || 'shared',
     }),
     signal: AbortSignal.timeout(600000), // 10 min background timeout
   }).then(async r => {
