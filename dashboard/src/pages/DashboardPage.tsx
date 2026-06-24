@@ -34,7 +34,10 @@ async function downloadProject(projectName: string, setStatus: (s: string) => vo
   if (!projectName) return;
   setStatus('downloading');
   try {
-    const res = await fetch(`${SERVER}/api/download?project=${encodeURIComponent(projectName)}`);
+    const token = localStorage.getItem('n8n-auth-token') ?? '';
+    const res = await fetch(`${SERVER}/api/download?project=${encodeURIComponent(projectName)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
       alert(`Download failed: ${err.error || res.statusText}`);
