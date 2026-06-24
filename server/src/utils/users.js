@@ -39,16 +39,17 @@ async function createUser({ name, email, password }) {
   if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
     throw new Error('Email already registered');
   }
-  const hash = await bcrypt.hash(password, 10);
+  const hash        = await bcrypt.hash(password, 10);
+  const isFirstUser = users.length === 0;
   const user = {
     id:                  uuidv4(),
     name,
     email,
     passwordHash:        hash,
-    role:                users.length === 0 ? 'admin' : 'user',
+    role:                isFirstUser ? 'admin' : 'user',
     webhookToken:        uuidv4().replace(/-/g, ''),
     github:              null,
-    emailVerified:       false,
+    emailVerified:       isFirstUser ? true : false,   // first admin bootstraps without email
     verificationToken:   uuidv4(),
     verificationExpiry:  new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     createdAt:           new Date().toISOString(),
