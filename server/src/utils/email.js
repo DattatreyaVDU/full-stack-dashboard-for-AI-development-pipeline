@@ -2,9 +2,10 @@ const nodemailer = require('nodemailer');
 
 function createTransport() {
   return nodemailer.createTransport({
-    host:             process.env.SMTP_HOST  || 'smtp.gmail.com',
-    port:             parseInt(process.env.SMTP_PORT || '587', 10),
-    secure:           process.env.SMTP_SECURE === 'true',
+    host:              process.env.SMTP_HOST  || 'smtp.gmail.com',
+    port:              parseInt(process.env.SMTP_PORT || '587', 10),
+    secure:            process.env.SMTP_SECURE === 'true',
+    family:            4,   // force IPv4 — Render free tier blocks IPv6
     connectionTimeout: 10000,
     greetingTimeout:   10000,
     socketTimeout:     15000,
