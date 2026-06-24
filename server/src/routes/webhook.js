@@ -323,7 +323,8 @@ router.get('/n8n', (req, res) => {
 //   Body: { "sessionId": "{{ $('When chat message received').item.json.sessionId }}",
 //           "output":    "{{ $('Lead Project Manager').item.json.output }}" }
 router.post('/chat-response', (req, res) => {
-  const io     = req.app.get('io');
+  const io          = req.app.get('io');
+  const updateState = req.app.get('updateState');
   const { sessionId, output } = req.body;
   if (!output) return res.status(400).json({ error: 'output is required' });
 
@@ -336,6 +337,11 @@ router.post('/chat-response', (req, res) => {
   } else {
     io.emit('chat:response', { sessionId: sessionId || '', output: String(output) });
   }
+
+  // Lead PM replied — n8n is no longer waiting on user input, reset pipeline step
+  updateState({ pipeline: { n8n: 'idle' } });
+  io.emit('pipeline:step', { step: 'n8n', status: 'idle' });
+
   console.log(`[Webhook] chat:response session=${sessionId} user=${userId ?? 'broadcast'} → "${String(output).slice(0, 80)}"`);
   res.json({ ok: true });
 });

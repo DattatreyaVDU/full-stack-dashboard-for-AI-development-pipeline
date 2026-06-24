@@ -19,7 +19,7 @@ function optionalAuth(req, res, next) {
 
 // POST /api/n8n/chat — proxies dashboard chat message to n8n chat trigger
 router.post('/chat', optionalAuth, async (req, res) => {
-  const { message, sessionId } = req.body;
+  const { message, sessionId, wakeup = false } = req.body;
   const userId = req.user?.id ?? null;
 
   if (!message) {
@@ -72,9 +72,11 @@ router.post('/chat', optionalAuth, async (req, res) => {
     }
   });
 
-  // Respond immediately — results arrive via Socket.IO as webhook events
-  updateState({ pipeline: { n8n: 'running' } });
-  io.emit('pipeline:step', { step: 'n8n', status: 'running' });
+  // Wakeup calls are silent background pings — don't change pipeline status
+  if (!wakeup) {
+    updateState({ pipeline: { n8n: 'running' } });
+    io.emit('pipeline:step', { step: 'n8n', status: 'running' });
+  }
   return res.json({ processing: true, message: 'Request sent to n8n pipeline' });
 });
 

@@ -346,7 +346,7 @@ export default function ChatPage({ builds }: Props) {
     setMessages([greeting]);
     setChatStarted(true);
     setTimeout(() => inputRef.current?.focus(), 100);
-    try { await n8nApi.chat('hi', session.id); } catch { /* silent */ }
+    try { await n8nApi.chat('hi', session.id, true); } catch { /* silent */ }
   }, [activeSession]);
 
   const send = useCallback(async (text?: string) => {

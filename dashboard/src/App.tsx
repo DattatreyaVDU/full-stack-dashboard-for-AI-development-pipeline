@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar';
 import TopBar from './components/layout/TopBar';
@@ -6,6 +7,7 @@ import { useStore } from './store/useStore';
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
 import { Pipeline } from './types';
+import { state as stateApi } from './api/client';
 
 import DashboardPage  from './pages/DashboardPage';
 import PreviewPage    from './pages/PreviewPage';
@@ -36,11 +38,13 @@ function AppInner() {
     },
     onWebhookReceived: (build) => {
       addBuild(build);
-      toast(`Web build: ${build.pageName}`, 'success', build.projectName);
+      const webFile = build.pageName?.split(/[\\/]/).pop() ?? build.pageName;
+      toast(`Web build: ${webFile}`, 'success', build.projectName);
     },
     onWpBuildReceived: (build) => {
       addWpBuild(build);
-      toast(`WP build: ${build.pageName}`, 'info', build.projectName);
+      const wpFile = build.pageName?.split(/[\\/]/).pop() ?? build.pageName;
+      toast(`WP build: ${wpFile}`, 'info', build.projectName);
     },
     onPipelineStep: ({ step, status, error }) => {
       updatePipelineStep(step as keyof Pipeline, status as Pipeline[keyof Pipeline]);
@@ -54,6 +58,20 @@ function AppInner() {
       window.dispatchEvent(new CustomEvent('n8n:chat-response', { detail: { output } }));
     },
   });
+
+  // Poll every 30 s while pipeline is active so missed socket events don't leave the UI stale
+  const pipelineRef = useRef(state.pipeline);
+  pipelineRef.current = state.pipeline;
+  useEffect(() => {
+    const id = setInterval(async () => {
+      const p = pipelineRef.current;
+      const isActive = Object.values(p).some(v => v === 'running');
+      if (!isActive) return;
+      try { const fresh = await stateApi.get(); setFullState(fresh); } catch { /* offline */ }
+    }, 30000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePipelineStep = (step: string, status: string) => {
     updatePipelineStep(step as keyof Pipeline, status as Pipeline[keyof Pipeline]);

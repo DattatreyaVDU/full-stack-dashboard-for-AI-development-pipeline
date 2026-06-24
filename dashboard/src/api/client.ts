@@ -43,8 +43,8 @@ export const state = {
 
 export const n8n = {
   status: () => api.get('/n8n/status').then(r => r.data),
-  chat: (message: string, sessionId: string) =>
-    api.post('/n8n/chat', { message, sessionId }).then(r => r.data),
+  chat: (message: string, sessionId: string, wakeup = false) =>
+    api.post('/n8n/chat', { message, sessionId, wakeup }).then(r => r.data),
 };
 
 export default api;
