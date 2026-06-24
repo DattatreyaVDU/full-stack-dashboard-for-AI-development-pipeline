@@ -160,6 +160,28 @@ export default function FileExplorerPage() {
     URL.revokeObjectURL(url);
   };
 
+  const [downloadingZip, setDownloadingZip] = useState(false);
+
+  const downloadZip = async () => {
+    if (!activeProject || downloadingZip) return;
+    setDownloadingZip(true);
+    try {
+      const token = localStorage.getItem('n8n-auth-token') ?? '';
+      const res   = await fetch(`${SERVER}/api/download?project=${encodeURIComponent(activeProject)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) { alert('Download failed — project files not found on server.'); return; }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${activeProject}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert('Download failed — check your connection.'); }
+    finally { setDownloadingZip(false); }
+  };
+
   return (
     <div className="page-body" style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0' }}>
 
@@ -210,9 +232,9 @@ export default function FileExplorerPage() {
         )}
 
         {activeProject && (
-          <a
-            href={`${SERVER}/api/download?project=${encodeURIComponent(activeProject)}`}
-            download={`${activeProject}.zip`}
+          <button
+            onClick={downloadZip}
+            disabled={downloadingZip}
             style={{
               display: 'flex', alignItems: 'center', gap: '0.35rem',
               padding: '0.3rem 0.7rem',
@@ -221,12 +243,13 @@ export default function FileExplorerPage() {
               background: 'rgba(0,201,167,0.08)',
               color: 'var(--accent-teal)',
               fontSize: '0.75rem', fontWeight: 600,
-              textDecoration: 'none', cursor: 'pointer',
+              cursor: downloadingZip ? 'wait' : 'pointer',
               whiteSpace: 'nowrap',
+              opacity: downloadingZip ? 0.6 : 1,
             }}
           >
-            <Download size={12} /> Download ZIP
-          </a>
+            <Download size={12} /> {downloadingZip ? 'Preparing…' : 'Download ZIP'}
+          </button>
         )}
       </div>
 
