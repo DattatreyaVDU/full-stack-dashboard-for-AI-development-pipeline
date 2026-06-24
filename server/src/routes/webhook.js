@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const fs   = require('fs');
 const path = require('path');
 const { Octokit }            = require('@octokit/rest');
-const { findByWebhookToken } = require('../utils/users');
+const { findByWebhookToken, findById } = require('../utils/users');
 const db                     = require('../db');
 
 // Files land in PROJECTS_DIR — set via env var, falls back to <repo-root>/projects/
@@ -228,15 +228,19 @@ router.post('/n8n', (req, res) => {
     return res.status(422).json({ success: false, error: `Normalisation failed: ${err.message}` });
   }
 
-  // ── Resolve userId from sessionId ────────────────────────────────────────────
+  // ── Resolve userId + userName from sessionId ─────────────────────────────────
   const sessionUserMap = req.app.get('sessionUserMap');
   const userId = (build.sessionId && sessionUserMap)
     ? (sessionUserMap.get(build.sessionId) ?? null)
     : null;
   build.userId = userId;
+  const userRecord  = userId ? findById(userId) : null;
+  const userSegment = userRecord
+    ? userRecord.name.toLowerCase().replace(/[^a-z0-9_-]/gi, '_')
+    : (userId || 'shared');
 
-  // ── Save file content to disk (user-namespaced path) ─────────────────────────
-  const localFilePath = saveFileToDisk(build, userId);
+  // ── Save file content to disk under username folder (matches n8n NAS structure)
+  const localFilePath = saveFileToDisk(build, userSegment);
   if (localFilePath) build.localFilePath = localFilePath;
 
   // ── Push to user's GitHub repo ───────────────────────────────────────────────
@@ -300,14 +304,18 @@ router.post('/wp', (req, res) => {
     return res.status(422).json({ success: false, error: `Normalisation failed: ${err.message}` });
   }
 
-  // Resolve userId from sessionId
+  // Resolve userId + userName from sessionId
   const sessionUserMap = req.app.get('sessionUserMap');
   const userId = (build.sessionId && sessionUserMap)
     ? (sessionUserMap.get(build.sessionId) ?? null)
     : null;
   build.userId = userId;
+  const wpUserRecord  = userId ? findById(userId) : null;
+  const wpUserSegment = wpUserRecord
+    ? wpUserRecord.name.toLowerCase().replace(/[^a-z0-9_-]/gi, '_')
+    : (userId || 'shared');
 
-  const localFilePath = saveFileToDisk(build, userId);
+  const localFilePath = saveFileToDisk(build, wpUserSegment);
   if (localFilePath) build.localFilePath = localFilePath;
 
   // Push to GitHub if userToken provided
