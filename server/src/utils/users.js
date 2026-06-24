@@ -96,6 +96,8 @@ function updateUser(id, updates) {
 // Strip sensitive fields before sending to client
 function safeUser(user) {
   const { passwordHash, verificationToken, verificationExpiry, ...safe } = user;
+  // Accounts created before email verification was added default to verified
+  if (safe.emailVerified === undefined) safe.emailVerified = true;
   return safe;
 }
 
