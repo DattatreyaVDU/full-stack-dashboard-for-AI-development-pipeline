@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   User, Mail, Lock, Github, Zap, Copy, Check, Eye, EyeOff,
   ShieldCheck, ExternalLink, AlertTriangle, CheckCircle2, Crown,
-  Trash2, RefreshCw,
+  Trash2, RefreshCw, Send, UserCheck, Users,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 
@@ -192,6 +192,11 @@ export default function ProfilePage() {
         onSuccess={async () => { await refreshUser(); showToast('Verification email sent — check your inbox'); }}
         onError={(msg: string) => showToast(msg, false)}
       />
+
+      {/* ── Admin: User Management ── */}
+      {user.role === 'admin' && (
+        <AdminUserManagement headers={headers()} />
+      )}
 
       {/* ── Danger Zone ── */}
       <DeleteAccountSection
@@ -464,6 +469,212 @@ function GitHubSection({ user, headers, getToken, onSuccess, onError }: any) {
         </div>
       )}
     </Section>
+  );
+}
+
+/* ── Admin: User Management ────────────────────────────────── */
+const ADMIN_API = (import.meta.env.VITE_API_URL ?? '') + '/api/admin';
+
+interface ManagedUser {
+  id:            string;
+  name:          string;
+  email:         string;
+  role:          'admin' | 'user';
+  emailVerified: boolean;
+  createdAt:     string;
+}
+
+function AdminUserManagement({ headers }: { headers: Record<string, string> }) {
+  const [users,       setUsers]       = useState<ManagedUser[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [sendingId,   setSendingId]   = useState<string | null>(null);
+  const [feedbackId,  setFeedbackId]  = useState<string | null>(null);
+  const [feedbackMsg, setFeedbackMsg] = useState('');
+  const [feedbackOk,  setFeedbackOk]  = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`${ADMIN_API}/users`, { headers });
+      const data = await res.json();
+      setUsers(data.users ?? []);
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const showFeedback = (id: string, msg: string, ok = true) => {
+    setFeedbackId(id); setFeedbackMsg(msg); setFeedbackOk(ok);
+    setTimeout(() => setFeedbackId(null), 4000);
+  };
+
+  const sendVerification = async (u: ManagedUser) => {
+    setSendingId(u.id);
+    try {
+      const res  = await fetch(`${ADMIN_API}/users/${u.id}/send-verification`, { method: 'POST', headers });
+      const data = await res.json();
+      showFeedback(u.id, data.message ?? (res.ok ? 'Email sent!' : data.error), res.ok);
+    } catch { showFeedback(u.id, 'Network error — try again', false); }
+    finally   { setSendingId(null); }
+  };
+
+  const markVerified = async (u: ManagedUser) => {
+    try {
+      const res  = await fetch(`${ADMIN_API}/users/${u.id}/verify`, { method: 'PATCH', headers });
+      const data = await res.json();
+      if (data.user) {
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, emailVerified: true } : x));
+        showFeedback(u.id, 'Marked as verified ✓', true);
+      }
+    } catch { showFeedback(u.id, 'Failed — try again', false); }
+  };
+
+  const unverified = users.filter(u => !u.emailVerified);
+  const verified   = users.filter(u =>  u.emailVerified);
+
+  return (
+    <div className="card" style={{ padding: '1.5rem', marginBottom: '1.25rem' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', paddingBottom: '0.875rem', borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <h2 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Users size={15} color="var(--accent-teal)" /> User Management
+          </h2>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+            Send verification emails and manage account access
+          </p>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={load} style={{ gap: '0.375rem' }}>
+          <RefreshCw size={12} /> Refresh
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8125rem', padding: '1rem 0' }}>
+          <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Loading users…
+        </div>
+      ) : (
+        <>
+          {/* Unverified — action needed */}
+          {unverified.length > 0 && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-orange)', letterSpacing: '0.05em', marginBottom: '0.625rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <AlertTriangle size={11} /> AWAITING VERIFICATION ({unverified.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {unverified.map(u => (
+                  <div key={u.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    flexWrap: 'wrap', gap: '0.625rem',
+                    padding: '0.875rem 1rem',
+                    background: 'rgba(251,146,60,0.05)',
+                    border: '1px solid rgba(251,146,60,0.2)',
+                    borderRadius: 'var(--radius-sm)',
+                  }}>
+                    {/* User info */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                        background: 'linear-gradient(135deg, var(--accent-teal), var(--accent-blue))',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.75rem', fontWeight: 700, color: '#fff',
+                      }}>
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {u.name} {u.role === 'admin' && <Crown size={10} color="var(--accent-orange)" />}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {u.email}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem', flexShrink: 0 }}>
+                      {feedbackId === u.id ? (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 500, color: feedbackOk ? 'var(--accent-teal)' : '#f87171' }}>
+                          {feedbackMsg}
+                        </span>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '0.375rem' }}>
+                          <button className="btn btn-primary btn-sm" onClick={() => sendVerification(u)} disabled={sendingId === u.id}
+                            style={{ fontSize: '0.75rem', gap: '0.35rem' }}>
+                            <Send size={11} /> {sendingId === u.id ? 'Sending…' : 'Send Verification Email'}
+                          </button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => markVerified(u)}
+                            title="Mark verified without sending email" style={{ fontSize: '0.75rem', gap: '0.35rem' }}>
+                            <UserCheck size={11} /> Mark OK
+                          </button>
+                        </div>
+                      )}
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                        Joined {new Date(u.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Verified users */}
+          {verified.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-teal)', letterSpacing: '0.05em', marginBottom: '0.625rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <ShieldCheck size={11} /> VERIFIED ({verified.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                {verified.map(u => (
+                  <div key={u.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    flexWrap: 'wrap', gap: '0.5rem',
+                    padding: '0.625rem 1rem',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                        background: u.role === 'admin'
+                          ? 'linear-gradient(135deg, var(--accent-orange), #9333ea)'
+                          : 'linear-gradient(135deg, var(--accent-teal), var(--accent-blue))',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.68rem', fontWeight: 700, color: '#fff',
+                      }}>
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {u.name} {u.role === 'admin' && <Crown size={10} color="var(--accent-orange)" />}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.email}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent-teal)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <CheckCircle2 size={11} /> Verified
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                        {new Date(u.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {users.length === 0 && (
+            <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.8125rem', margin: 0 }}>
+              No users found.
+            </p>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
