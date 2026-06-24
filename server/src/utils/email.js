@@ -1,22 +1,64 @@
-// Uses Resend HTTP API (port 443) — works on Render free tier which blocks SMTP ports.
-// Set RESEND_API_KEY (or SMTP_PASS when SMTP_USER=resend) in environment variables.
+// Sends email via Resend HTTP API — works on Render free tier (no SMTP port blocks).
+// Requires SMTP_USER=resend and SMTP_PASS=re_... in environment variables.
+
+const https = require('https');
 
 function getApiKey() {
-  // Support both RESEND_API_KEY and the SMTP_PASS pattern (SMTP_USER=resend)
   return process.env.RESEND_API_KEY ||
     (process.env.SMTP_USER === 'resend' ? process.env.SMTP_PASS : null);
 }
 
+function httpsPost(url, body, headers) {
+  return new Promise((resolve, reject) => {
+    const parsed  = new URL(url);
+    const payload = JSON.stringify(body);
+    const req = https.request({
+      hostname: parsed.hostname,
+      path:     parsed.pathname,
+      method:   'POST',
+      headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...headers },
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, body: data }); }
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function httpsGet(url, headers) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const req = https.request({
+      hostname: parsed.hostname,
+      path:     parsed.pathname,
+      method:   'GET',
+      headers,
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, body: data }); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 async function testSmtp() {
   const key = getApiKey();
-  if (!key) return { ok: false, error: 'RESEND_API_KEY not set (or SMTP_USER=resend + SMTP_PASS=re_...)' };
+  if (!key) return { ok: false, error: 'Set SMTP_USER=resend and SMTP_PASS=re_... in Render env vars' };
   try {
-    const res = await fetch('https://api.resend.com/domains', {
-      headers: { Authorization: `Bearer ${key}` },
-    });
-    if (res.ok) return { ok: true, service: 'Resend HTTP API' };
-    const data = await res.json();
-    return { ok: false, error: data.message ?? `HTTP ${res.status}` };
+    const res = await httpsGet('https://api.resend.com/domains', { Authorization: `Bearer ${key}` });
+    if (res.status === 200) return { ok: true, service: 'Resend HTTP API' };
+    return { ok: false, error: res.body?.message ?? `HTTP ${res.status}` };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -27,7 +69,7 @@ async function sendVerificationEmail(toUser, verificationUrl) {
   const from = process.env.SMTP_FROM || 'onboarding@resend.dev';
 
   if (!key) {
-    console.warn('[Email] No API key found — set RESEND_API_KEY or SMTP_USER=resend + SMTP_PASS=re_...');
+    console.warn('[Email] No Resend API key — set SMTP_USER=resend and SMTP_PASS=re_...');
     return false;
   }
 
@@ -57,23 +99,17 @@ async function sendVerificationEmail(toUser, verificationUrl) {
 </body></html>`;
 
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method:  'POST',
-      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        from,
-        to:      [toUser.email],
-        subject: 'Verify your account — n8n Pipeline Dashboard',
-        html,
-      }),
-    });
+    const res = await httpsPost(
+      'https://api.resend.com/emails',
+      { from, to: [toUser.email], subject: 'Verify your account — n8n Pipeline Dashboard', html },
+      { Authorization: `Bearer ${key}` },
+    );
 
-    const data = await res.json();
-    if (!res.ok) {
-      console.error(`[Email] Resend API error ${res.status}: ${data.message ?? JSON.stringify(data)}`);
+    if (res.status !== 200 && res.status !== 201) {
+      console.error(`[Email] Resend error ${res.status}: ${res.body?.message ?? JSON.stringify(res.body)}`);
       return false;
     }
-    console.log(`[Email] Verification sent → ${toUser.email} (id: ${data.id})`);
+    console.log(`[Email] Verification sent → ${toUser.email} (id: ${res.body?.id})`);
     return true;
   } catch (err) {
     console.error(`[Email] Send failed: ${err.message}`);
