@@ -52,20 +52,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user,    setUser]    = useState<AuthUser | null>(() => {
     try { return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null'); } catch { return null; }
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => !!localStorage.getItem(TOKEN_KEY));
   const [error,   setError]   = useState<string | null>(null);
 
-  // Validate stored token on mount
+  // Validate stored token on mount — keep loading=true until server confirms
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     apiFetch('/me', {}, token)
       .then(d => { setUser(d.user); localStorage.setItem(USER_KEY, JSON.stringify(d.user)); })
       .catch(() => {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
         setUser(null);
-      });
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
