@@ -12,9 +12,16 @@ const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(__dirname, '..', '..'
 
 // Valid WordPress/web theme file extensions
 const VALID_THEME_EXTS = new Set([
-  '.php', '.css', '.js', '.html', '.htm',
-  '.json', '.txt', '.pot', '.png', '.jpg', '.jpeg', '.svg', '.webp',
-  '.md', '.xml', '.htaccess',
+  // Web / React
+  '.ts', '.tsx', '.jsx', '.js', '.html', '.htm', '.css',
+  // Config & tooling
+  '.json', '.env', '.yml', '.yaml', '.sh', '.txt', '.md', '.xml',
+  // WordPress
+  '.php', '.pot', '.htaccess',
+  // Database
+  '.sql',
+  // Images
+  '.png', '.jpg', '.jpeg', '.svg', '.webp',
 ]);
 
 function isGarbageFilename(baseName) {
@@ -30,17 +37,44 @@ function isGarbageFilename(baseName) {
 function saveFileToDisk(build, userId = null) {
   if (!build.content) return null;
   try {
-    const safeName  = build.projectName.replace(/[^a-z0-9_-]/gi, '_');
+    const safeName    = build.projectName.replace(/[^a-z0-9_-]/gi, '_');
     const userSegment = userId || 'shared';
-    const dir = path.join(PROJECTS_DIR, userSegment, safeName);
+    const dir         = path.join(PROJECTS_DIR, userSegment, safeName);
     fs.mkdirSync(dir, { recursive: true });
 
+    // ── Parse === FILE: blocks (React/WP pipeline output) ───────────────────────
+    const fileRegex = /===\s*FILE:\s*(.+?)\s*===\n([\s\S]*?)(?:\n?===\s*END FILE\s*===|(?====\s*FILE:)|$)/g;
+    const savedFiles = [];
+    let match;
+
+    while ((match = fileRegex.exec(build.content)) !== null) {
+      const relPath     = match[1].trim();
+      const fileContent = match[2].replace(/\n$/, '');
+      if (!relPath || !fileContent.trim()) continue;
+
+      const baseName = path.basename(relPath);
+      if (isGarbageFilename(baseName)) continue;
+
+      const ext = path.extname(baseName).toLowerCase();
+      if (ext && !VALID_THEME_EXTS.has(ext)) continue;
+
+      const fullPath = path.join(dir, relPath);
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, fileContent, 'utf8');
+      savedFiles.push(fullPath);
+    }
+
+    if (savedFiles.length > 0) {
+      console.log(`[Webhook] Saved ${savedFiles.length} file(s) to ${dir}`);
+      return savedFiles[0];
+    }
+
+    // ── Fallback: save as single file using pageName ─────────────────────────────
     const rawFile  = build.filePath || build.pageName || `page_${build.pageId}`;
     const baseName = path.basename(rawFile);
     const ext      = path.extname(baseName).toLowerCase();
     const fileName = ext ? baseName : `${baseName}.md`;
 
-    // Skip garbage files — path-encoded names, prompt files, unknown extensions
     if (isGarbageFilename(fileName)) {
       console.log(`[Webhook] Skipped garbage filename: ${fileName}`);
       return null;
@@ -52,7 +86,7 @@ function saveFileToDisk(build, userId = null) {
 
     const fullPath = path.join(dir, fileName);
     fs.writeFileSync(fullPath, build.content, 'utf8');
-    console.log(`[Webhook] Saved → ${fullPath}`);
+    console.log(`[Webhook] Saved (fallback) → ${fullPath}`);
     return fullPath;
   } catch (err) {
     console.error(`[Webhook] File save failed: ${err.message}`);

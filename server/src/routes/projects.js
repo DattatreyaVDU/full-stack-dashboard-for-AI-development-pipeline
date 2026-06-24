@@ -3,7 +3,7 @@ const router  = express.Router();
 const fs      = require('fs');
 const path    = require('path');
 
-const PROJECTS_DIR = path.join(__dirname, '..', '..', '..', 'projects');
+const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(__dirname, '..', '..', '..', 'projects');
 
 const TEXT_EXTS = new Set([
   '.php', '.css', '.js', '.ts', '.tsx', '.jsx', '.html', '.htm',
@@ -78,6 +78,8 @@ function formatSize(bytes) {
 }
 
 // ── GET /api/projects ──────────────────────────────────────────────────────────
+// PROJECTS_DIR layout: <PROJECTS_DIR>/<userSegment>/<projectName>/...
+// We flatten all user segments so the API returns all projects with a userSegment field.
 router.get('/', (req, res) => {
   if (!fs.existsSync(PROJECTS_DIR)) {
     return res.json({ projects: [], projectsDir: PROJECTS_DIR });
@@ -89,37 +91,32 @@ router.get('/', (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 
-  for (const name of topLevel) {
-    const projPath = path.join(PROJECTS_DIR, name);
-    let stat;
-    try { stat = fs.statSync(projPath); } catch { continue; }
-    if (!stat.isDirectory()) continue;
+  for (const segment of topLevel) {
+    const segPath = path.join(PROJECTS_DIR, segment);
+    let segStat;
+    try { segStat = fs.statSync(segPath); } catch { continue; }
+    if (!segStat.isDirectory()) continue;
 
-    const entries   = walkDir(projPath);
-    const files     = entries.filter(e => e.type === 'file');
-    const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
-    const lastMtime = files.reduce((m, f) => Math.max(m, f.mtime || 0), 0);
+    // Check if this directory IS a project (starts with web_ or wp_) or a user segment
+    const isProject = /^(web_|wp_)/.test(segment);
 
-    // Count by extension
-    const extCounts = {};
-    for (const f of files) {
-      extCounts[f.ext] = (extCounts[f.ext] || 0) + 1;
+    if (isProject) {
+      // Legacy flat layout: project sits directly in PROJECTS_DIR
+      pushProject(projects, PROJECTS_DIR, segment, 'shared');
+    } else {
+      // User segment folder — each child is a project
+      let projectNames;
+      try { projectNames = fs.readdirSync(segPath); } catch { continue; }
+      for (const projName of projectNames) {
+        const projPath = path.join(segPath, projName);
+        let projStat;
+        try { projStat = fs.statSync(projPath); } catch { continue; }
+        if (!projStat.isDirectory()) continue;
+        pushProject(projects, segPath, projName, segment);
+      }
     }
-
-    projects.push({
-      name,
-      type:         getProjectType(name),
-      fileCount:    files.length,
-      totalSize,
-      totalSizeFmt: formatSize(totalSize),
-      lastModified: lastMtime ? new Date(lastMtime).toISOString() : null,
-      extCounts,
-      // Top-level files only (for quick preview)
-      topFiles: files.filter(f => !f.path.includes('/')).map(f => f.name),
-    });
   }
 
-  // Sort newest first
   projects.sort((a, b) => {
     if (!a.lastModified) return 1;
     if (!b.lastModified) return -1;
@@ -129,18 +126,56 @@ router.get('/', (req, res) => {
   res.json({ projects, projectsDir: PROJECTS_DIR });
 });
 
-// ── GET /api/projects/:name/tree ──────────────────────────────────────────────
-router.get('/:name/tree', (req, res) => {
-  const safeName = path.basename(req.params.name);
-  const projDir  = path.join(PROJECTS_DIR, safeName);
+function pushProject(projects, parentDir, name, userSegment) {
+  const projPath  = path.join(parentDir, name);
+  const entries   = walkDir(projPath);
+  const files     = entries.filter(e => e.type === 'file');
+  const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
+  const lastMtime = files.reduce((m, f) => Math.max(m, f.mtime || 0), 0);
 
-  if (!fs.existsSync(projDir)) {
-    return res.status(404).json({ error: 'Project not found' });
+  const extCounts = {};
+  for (const f of files) {
+    extCounts[f.ext] = (extCounts[f.ext] || 0) + 1;
   }
 
-  const entries = walkDir(projDir);
-  const tree    = buildTree(entries);
-  const files   = entries.filter(e => e.type === 'file');
+  projects.push({
+    name,
+    userSegment,
+    type:         getProjectType(name),
+    fileCount:    files.length,
+    totalSize,
+    totalSizeFmt: formatSize(totalSize),
+    lastModified: lastMtime ? new Date(lastMtime).toISOString() : null,
+    extCounts,
+    topFiles:     files.filter(f => !f.path.includes('/')).map(f => f.name),
+  });
+}
+
+// Resolve a project name → absolute directory, searching all user segments.
+function resolveProjectDir(name) {
+  const safe = path.basename(name);
+  // Direct (legacy flat layout)
+  const direct = path.join(PROJECTS_DIR, safe);
+  if (fs.existsSync(direct)) return direct;
+  // Search inside user-segment subdirectories
+  let segments;
+  try { segments = fs.readdirSync(PROJECTS_DIR); } catch { return null; }
+  for (const seg of segments) {
+    const candidate = path.join(PROJECTS_DIR, seg, safe);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+// ── GET /api/projects/:name/tree ──────────────────────────────────────────────
+router.get('/:name/tree', (req, res) => {
+  const projDir = resolveProjectDir(req.params.name);
+  if (!projDir) return res.status(404).json({ error: 'Project not found' });
+
+  const safeName = path.basename(projDir);
+  const entries  = walkDir(projDir);
+  const tree     = buildTree(entries);
+  const files    = entries.filter(e => e.type === 'file');
 
   res.json({
     name:      safeName,
@@ -153,13 +188,13 @@ router.get('/:name/tree', (req, res) => {
 
 // ── GET /api/projects/:name/file?path=relative/path ───────────────────────────
 router.get('/:name/file', (req, res) => {
-  const safeName  = path.basename(req.params.name);
-  const filePath  = req.query.path;
-
+  const filePath = req.query.path;
   if (!filePath) return res.status(400).json({ error: 'path query param required' });
 
+  const projDir = resolveProjectDir(req.params.name);
+  if (!projDir) return res.status(404).json({ error: 'Project not found' });
+
   // Security: resolve and ensure it stays inside the project dir
-  const projDir  = path.join(PROJECTS_DIR, safeName);
   const fullPath = path.resolve(projDir, filePath);
   if (!fullPath.startsWith(projDir + path.sep) && fullPath !== projDir) {
     return res.status(403).json({ error: 'Path traversal denied' });
