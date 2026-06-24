@@ -152,6 +152,21 @@ router.delete('/account', requireAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/auth/bootstrap-verify — no auth, requires BOOTSTRAP_TOKEN env var ─
+// One-time escape hatch: set BOOTSTRAP_TOKEN in Render env, call this URL once,
+// then remove the env var. Lets admin verify their account when SMTP is broken.
+router.get('/bootstrap-verify', async (req, res) => {
+  const secret = process.env.BOOTSTRAP_TOKEN;
+  if (!secret) return res.status(404).json({ error: 'Not available' });
+  if (req.query.token !== secret) return res.status(403).json({ error: 'Invalid token' });
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'email query param required' });
+  const user = findByEmail(email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const updated = updateUser(user.id, { emailVerified: true, role: 'admin' });
+  res.json({ ok: true, message: `${updated.name} is now verified and admin. You can log in.` });
+});
+
 // ── GET /api/auth/test-smtp — admin only, verifies SMTP credentials ───────────
 router.get('/test-smtp', requireAuth, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
