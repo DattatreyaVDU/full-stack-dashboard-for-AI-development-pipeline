@@ -41,6 +41,7 @@ async function createUser({ name, email, password }) {
   }
   const hash        = await bcrypt.hash(password, 10);
   const isFirstUser = users.length === 0;
+  const skipVerify  = isFirstUser || process.env.SKIP_EMAIL_VERIFICATION === 'true';
   const user = {
     id:                  uuidv4(),
     name,
@@ -49,7 +50,7 @@ async function createUser({ name, email, password }) {
     role:                isFirstUser ? 'admin' : 'user',
     webhookToken:        uuidv4().replace(/-/g, ''),
     github:              null,
-    emailVerified:       isFirstUser ? true : false,   // first admin bootstraps without email
+    emailVerified:       skipVerify,
     verificationToken:   uuidv4(),
     verificationExpiry:  new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     createdAt:           new Date().toISOString(),
