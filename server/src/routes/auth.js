@@ -83,7 +83,8 @@ router.post('/resend-verification', requireAuth, async (req, res) => {
   const verifyUrl = `${FRONTEND_URL}/verify?token=${updated.verificationToken}`;
   const sent      = await sendVerificationEmail(updated, verifyUrl);
 
-  res.json({ message: sent ? 'Verification email sent.' : 'Email queued (check server logs if not received).' });
+  if (!sent) return res.status(500).json({ error: 'smtp_failed', message: 'Email could not be sent. Check SMTP credentials in Render environment variables.' });
+  res.json({ message: 'Verification email sent.' });
 });
 
 // ── PATCH /api/auth/profile ───────────────────────────────────────────────────
