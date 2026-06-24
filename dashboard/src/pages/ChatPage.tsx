@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, User, Zap, Eye, LayoutDashboard, Github, CheckCircle2,
+import { Send, Square, Bot, User, Zap, Eye, LayoutDashboard, Github, CheckCircle2,
          AlertCircle, ArrowRight, Sparkles, Plus, MessageSquare, Trash2 } from 'lucide-react';
 import { n8n as n8nApi } from '../api/client';
 import { Build } from '../types';
@@ -349,6 +349,15 @@ export default function ChatPage({ builds }: Props) {
     try { await n8nApi.chat('hi', session.id, true); } catch { /* silent */ }
   }, [activeSession]);
 
+  const handleStop = useCallback(async () => {
+    if (completionTimer.current) clearTimeout(completionTimer.current);
+    setLoading(false);
+    setBuilding(false);
+    _requestInFlight = false;
+    addMessage('system', 'Execution stopped by user.');
+    try { await n8nApi.stop(); } catch { /* best-effort */ }
+  }, [addMessage]);
+
   const send = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || loading || !activeSession) return;
@@ -566,12 +575,24 @@ export default function ChatPage({ builds }: Props) {
               {!loading && _requestInFlight && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '0.5rem',
-                  padding: '0.5rem 0.875rem',
+                  padding: '0.4rem 0.75rem',
                   background: 'rgba(96,165,250,0.07)', border: '1px solid rgba(96,165,250,0.18)',
                   borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem', color: 'var(--accent-blue)',
                 }}>
                   <span className="spinner" style={{ width: 12, height: 12, borderWidth: '2px', flexShrink: 0 }} />
-                  Pipeline is running — waiting for n8n response…
+                  <span style={{ flex: 1 }}>Pipeline is running — waiting for n8n response…</span>
+                  <button
+                    onClick={handleStop}
+                    style={{
+                      background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+                      borderRadius: '4px', cursor: 'pointer', color: '#ef4444',
+                      display: 'flex', alignItems: 'center', gap: '4px',
+                      padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600,
+                    }}
+                    title="Stop execution"
+                  >
+                    <Square size={10} fill="currentColor" /> Stop
+                  </button>
                 </div>
               )}
 
@@ -609,17 +630,35 @@ export default function ChatPage({ builds }: Props) {
                   }}
                   disabled={loading}
                 />
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => send()}
-                  disabled={!input.trim() || loading}
-                  style={{ flexShrink: 0, alignSelf: 'flex-end', borderRadius: 'var(--radius-sm)' }}
-                >
-                  {loading
-                    ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: '2px' }} />
-                    : <Send size={13} />
-                  }
-                </button>
+                {(loading || building) ? (
+                  <button
+                    onClick={handleStop}
+                    title="Stop execution"
+                    style={{
+                      flexShrink: 0, alignSelf: 'flex-end',
+                      background: 'rgba(239,68,68,0.12)',
+                      border: '1.5px solid rgba(239,68,68,0.4)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: '#ef4444', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 32, height: 32,
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.22)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.12)')}
+                  >
+                    <Square size={13} fill="currentColor" />
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => send()}
+                    disabled={!input.trim()}
+                    style={{ flexShrink: 0, alignSelf: 'flex-end', borderRadius: 'var(--radius-sm)' }}
+                  >
+                    <Send size={13} />
+                  </button>
+                )}
               </div>
               <div style={{ fontSize: '0.675rem', color: 'var(--text-muted)', marginTop: '0.4rem', textAlign: 'center' }}>
                 Press <kbd style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0 4px', fontSize: '0.65rem' }}>Enter</kbd>

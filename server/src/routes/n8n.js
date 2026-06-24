@@ -80,6 +80,65 @@ router.post('/chat', optionalAuth, async (req, res) => {
   return res.json({ processing: true, message: 'Request sent to n8n pipeline' });
 });
 
+// POST /api/n8n/stop — stop all running n8n executions and reset pipeline state
+router.post('/stop', optionalAuth, async (req, res) => {
+  const io          = req.app.get('io');
+  const updateState = req.app.get('updateState');
+
+  const resetPipeline = () => {
+    updateState({ pipeline: { n8n: 'idle', webhook: 'idle', github: 'idle', deploy: 'idle' } });
+    io.emit('pipeline:step', { step: 'n8n',     status: 'idle' });
+    io.emit('pipeline:step', { step: 'webhook', status: 'idle' });
+  };
+
+  const n8nChatUrl = process.env.N8N_CHAT_URL;
+  const n8nApiKey  = process.env.N8N_API_KEY;
+
+  if (!n8nChatUrl || !n8nApiKey) {
+    resetPipeline();
+    return res.json({ stopped: 0, message: 'Pipeline reset (set N8N_API_KEY in Render env to also stop remote executions)' });
+  }
+
+  try {
+    const base    = new URL(n8nChatUrl);
+    const n8nBase = `${base.protocol}//${base.host}`;
+
+    const listRes = await fetch(`${n8nBase}/api/v1/executions?status=running&limit=10`, {
+      headers: { 'X-N8N-API-KEY': n8nApiKey },
+      signal:  AbortSignal.timeout(6000),
+    });
+
+    if (!listRes.ok) {
+      resetPipeline();
+      return res.json({ stopped: 0, message: 'Pipeline reset (n8n API error)', pipelineReset: true });
+    }
+
+    const body       = await listRes.json();
+    const executions = body.data ?? body.executions ?? [];
+    let   stopped    = 0;
+
+    for (const exec of executions) {
+      try {
+        const r = await fetch(`${n8nBase}/api/v1/executions/${exec.id}/stop`, {
+          method:  'POST',
+          headers: { 'X-N8N-API-KEY': n8nApiKey },
+          signal:  AbortSignal.timeout(6000),
+        });
+        if (r.ok) stopped++;
+      } catch { /* skip individual failures */ }
+    }
+
+    resetPipeline();
+    console.log(`[n8n] Stop: halted ${stopped} execution(s)`);
+    return res.json({ stopped, message: `Stopped ${stopped} execution(s)` });
+
+  } catch (err) {
+    resetPipeline();
+    console.error(`[n8n] Stop error: ${err.message}`);
+    return res.json({ stopped: 0, message: 'Pipeline reset. Could not reach n8n API.' });
+  }
+});
+
 // GET /api/n8n/status — check config and connectivity
 router.get('/status', async (req, res) => {
   const url = process.env.N8N_CHAT_URL;
