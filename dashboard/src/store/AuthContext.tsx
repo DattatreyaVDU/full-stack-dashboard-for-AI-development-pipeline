@@ -6,13 +6,14 @@ export interface GithubProfile {
 }
 
 export interface AuthUser {
-  id:           string;
-  name:         string;
-  email:        string;
-  role:         'admin' | 'user';
-  webhookToken: string;
-  github:       GithubProfile | null;
-  createdAt:    string;
+  id:            string;
+  name:          string;
+  email:         string;
+  role:          'admin' | 'user';
+  webhookToken:  string;
+  github:        GithubProfile | null;
+  emailVerified: boolean;
+  createdAt:     string;
 }
 
 interface AuthCtx {

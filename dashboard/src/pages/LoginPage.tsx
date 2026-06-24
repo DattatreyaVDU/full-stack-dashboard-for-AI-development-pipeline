@@ -2,27 +2,49 @@ import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../store/useAuth';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Zap, ArrowRight } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Zap, ArrowRight, AlertTriangle } from 'lucide-react';
+
+const AUTH_API = (import.meta.env.VITE_API_URL ?? '') + '/api/auth';
 
 export default function LoginPage() {
-  const { login, loading } = useAuth();
+  const { login, loading, getToken } = useAuth();
   const navigate  = useNavigate();
   const [params]  = useSearchParams();
 
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [showPass, setShowPass] = useState(false);
-  const [error,    setError]    = useState('');
+  const [email,          setEmail]          = useState('');
+  const [password,       setPassword]       = useState('');
+  const [showPass,       setShowPass]       = useState(false);
+  const [error,          setError]          = useState('');
+  const [unverified,     setUnverified]     = useState(false);
+  const [resendLoading,  setResendLoading]  = useState(false);
+  const [resendMsg,      setResendMsg]      = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError(''); setUnverified(false); setResendMsg('');
     try {
-      await login(email.trim(), password);
+      const user = await login(email.trim(), password);
+      if (!user.emailVerified) { setUnverified(true); return; }
       const from = params.get('from') ?? '/';
       navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendLoading(true); setResendMsg('');
+    try {
+      const res  = await fetch(`${AUTH_API}/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      setResendMsg(data.message ?? 'Sent!');
+    } catch {
+      setResendMsg('Failed — please try again.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -97,6 +119,29 @@ export default function LoginPage() {
           {error && (
             <div style={{ padding: '0.625rem 0.875rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', fontSize: '0.8125rem', color: '#f87171' }}>
               {error}
+            </div>
+          )}
+
+          {unverified && (
+            <div style={{
+              padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem',
+              background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.3)',
+              fontSize: '0.8125rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-orange)', fontWeight: 600, marginBottom: '0.5rem' }}>
+                <AlertTriangle size={14} /> Email not verified
+              </div>
+              <p style={{ color: 'var(--text-secondary)', margin: '0 0 0.625rem', lineHeight: 1.5 }}>
+                Please check your inbox and click the verification link before signing in.
+              </p>
+              {resendMsg ? (
+                <span style={{ color: 'var(--accent-teal)', fontSize: '0.8rem' }}>{resendMsg}</span>
+              ) : (
+                <button type="button" onClick={handleResend} disabled={resendLoading}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent-teal)', fontWeight: 600, fontSize: '0.8125rem', textDecoration: 'underline' }}>
+                  {resendLoading ? 'Sending…' : 'Resend verification email'}
+                </button>
+              )}
             </div>
           )}
 

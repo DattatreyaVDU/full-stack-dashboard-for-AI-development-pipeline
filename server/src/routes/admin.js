@@ -1,8 +1,14 @@
 const express = require('express');
 const router  = express.Router();
-const { loadUsers, findById, deleteUser, resetWebhookToken, safeUser } = require('../utils/users');
+const {
+  loadUsers, findById, deleteUser, resetWebhookToken,
+  refreshVerificationToken, updateUser, safeUser,
+} = require('../utils/users');
 const { requireAdmin } = require('../middleware/auth');
+const { sendVerificationEmail } = require('../utils/email');
 const db = require('../db');
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // All admin routes require admin role
 router.use(requireAdmin);
@@ -67,6 +73,37 @@ router.post('/users/:id/reset-token', (req, res) => {
   } catch (err) {
     res.status(404).json({ error: err.message });
   }
+});
+
+// POST /api/admin/users/:id/send-verification
+router.post('/users/:id/send-verification', async (req, res) => {
+  const user = findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.emailVerified) return res.status(400).json({ error: 'Email is already verified' });
+
+  const updated   = refreshVerificationToken(user.id);
+  const verifyUrl = `${FRONTEND_URL}/verify?token=${updated.verificationToken}`;
+  const sent      = await sendVerificationEmail(updated, verifyUrl);
+
+  res.json({
+    success: sent,
+    message: sent
+      ? `Verification email sent to ${user.email}`
+      : 'Email queued (SMTP may not be configured — check server logs)',
+  });
+});
+
+// PATCH /api/admin/users/:id/verify — manually mark as verified without email
+router.patch('/users/:id/verify', (req, res) => {
+  const user = findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const updated = updateUser(user.id, {
+    emailVerified:     true,
+    verificationToken:  null,
+    verificationExpiry: null,
+  });
+  res.json({ user: safeUser(updated) });
 });
 
 // PATCH /api/admin/users/:id/role

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   User, Mail, Lock, Github, Zap, Copy, Check, Eye, EyeOff,
   ShieldCheck, ExternalLink, AlertTriangle, CheckCircle2, Crown,
+  Trash2, RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 
@@ -41,7 +42,7 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
 
 /* ── main component ────────────────────────────────────────── */
 export default function ProfilePage() {
-  const { user, refreshUser, getToken } = useAuth();
+  const { user, refreshUser, getToken, logout } = useAuth();
   const navigate = useNavigate();
 
   const [copied,  setCopied]  = useState(false);
@@ -183,6 +184,21 @@ export default function ProfilePage() {
           </p>
         </div>
       </Section>
+
+      {/* ── Email Verification ── */}
+      <EmailVerificationSection
+        user={user}
+        headers={headers()}
+        onSuccess={async () => { await refreshUser(); showToast('Verification email sent — check your inbox'); }}
+        onError={(msg: string) => showToast(msg, false)}
+      />
+
+      {/* ── Danger Zone ── */}
+      <DeleteAccountSection
+        headers={headers()}
+        onDeleted={() => { logout(); navigate('/login'); }}
+        onError={(msg: string) => showToast(msg, false)}
+      />
 
     </div>
   );
@@ -448,6 +464,117 @@ function GitHubSection({ user, headers, getToken, onSuccess, onError }: any) {
         </div>
       )}
     </Section>
+  );
+}
+
+/* ── Email Verification ────────────────────────────────────── */
+function EmailVerificationSection({ user, headers, onSuccess, onError }: any) {
+  const [loading, setLoading] = useState(false);
+
+  const resend = async () => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API}/auth/resend-verification`, { method: 'POST', headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onSuccess();
+    } catch (e: any) { onError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <Section title="Email Verification" desc="Verified accounts get access to all dashboard features.">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.875rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <StatusBadge ok={user.emailVerified} label={user.emailVerified ? 'Verified' : 'Not Verified'} />
+          <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>{user.email}</span>
+        </div>
+        {!user.emailVerified && (
+          <button className="btn btn-ghost btn-sm" onClick={resend} disabled={loading} style={{ gap: '0.4rem' }}>
+            <RefreshCw size={13} /> {loading ? 'Sending…' : 'Resend Verification Email'}
+          </button>
+        )}
+      </div>
+      {!user.emailVerified && (
+        <p style={{ fontSize: '0.8rem', color: 'var(--accent-orange)', margin: '0.875rem 0 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <AlertTriangle size={13} /> Check your inbox for the verification email.
+        </p>
+      )}
+    </Section>
+  );
+}
+
+/* ── Delete Account ────────────────────────────────────────── */
+function DeleteAccountSection({ headers, onDeleted, onError }: any) {
+  const [open,     setOpen]     = useState(false);
+  const [password, setPassword] = useState('');
+  const [show,     setShow]     = useState(false);
+  const [loading,  setLoading]  = useState(false);
+
+  const handleDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API}/auth/account`, {
+        method: 'DELETE', headers,
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onDeleted();
+    } catch (e: any) { onError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="card" style={{ padding: '1.5rem', marginBottom: '1.25rem', border: '1px solid rgba(239,68,68,0.25)' }}>
+      <div style={{ marginBottom: open ? '1.25rem' : 0, paddingBottom: open ? '0.875rem' : 0, borderBottom: open ? '1px solid rgba(239,68,68,0.15)' : 'none' }}>
+        <h2 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f87171', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Trash2 size={15} /> Danger Zone
+        </h2>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.25rem 0 0', lineHeight: 1.5 }}>
+          Permanently delete your account and all associated data. This cannot be undone.
+        </p>
+      </div>
+
+      {!open ? (
+        <button
+          className="btn btn-sm"
+          onClick={() => setOpen(true)}
+          style={{ marginTop: '1rem', background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)', gap: '0.4rem' }}
+        >
+          <Trash2 size={13} /> Delete My Account
+        </button>
+      ) : (
+        <form onSubmit={handleDelete} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+            Enter your password to confirm. All your data will be permanently removed.
+          </p>
+          <div style={{ position: 'relative' }}>
+            <Lock size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type={show ? 'text' : 'password'} required
+              value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="Your current password"
+              style={{ width: '100%', paddingLeft: '2.25rem', paddingRight: '2.5rem', boxSizing: 'border-box' }}
+            />
+            <button type="button" onClick={() => setShow(s => !s)}
+              style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+              {show ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '0.625rem' }}>
+            <button type="submit" disabled={loading || !password}
+              style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+              <Trash2 size={13} /> {loading ? 'Deleting…' : 'Delete Account'}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setOpen(false); setPassword(''); }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 

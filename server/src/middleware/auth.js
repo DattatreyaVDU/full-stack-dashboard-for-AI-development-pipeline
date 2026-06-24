@@ -4,7 +4,7 @@ const { findById } = require('../utils/users');
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
 
 function signToken(userId) {
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '4h' });
 }
 
 function requireAuth(req, res, next) {

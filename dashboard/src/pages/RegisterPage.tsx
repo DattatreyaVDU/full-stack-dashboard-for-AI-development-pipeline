@@ -1,11 +1,13 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../store/useAuth';
-import { Zap, Mail, Lock, User, Eye, EyeOff, Github, CheckCircle2, Copy, Check, ChevronRight } from 'lucide-react';
+import { Zap, Mail, Lock, User, Eye, EyeOff, Github, CheckCircle2, Copy, Check, ChevronRight, RefreshCw } from 'lucide-react';
+
+const AUTH_API = (import.meta.env.VITE_API_URL ?? '') + '/api/auth';
 
 const API = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
-type Step = 'account' | 'github' | 'repo' | 'done';
+type Step = 'account' | 'verify-email' | 'github' | 'repo' | 'done';
 
 export default function RegisterPage() {
   const { register, refreshUser, getToken, loading, error } = useAuth();
@@ -61,9 +63,28 @@ export default function RegisterPage() {
     if (password.length < 6)  { setLocalErr('Password must be at least 6 characters'); return; }
     try {
       await register(name.trim(), email.trim(), password);
-      setStep('github');
+      setStep('verify-email');
     } catch (err: any) {
       setLocalErr(err.message);
+    }
+  };
+
+  // ── Step 1b: resend verification email ─────────────────────────────────────
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMsg,     setResendMsg]     = useState('');
+  const handleResend = async () => {
+    setResendLoading(true); setResendMsg('');
+    try {
+      const res  = await fetch(`${AUTH_API}/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      setResendMsg(data.message ?? 'Sent!');
+    } catch {
+      setResendMsg('Failed to resend. Please try again.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -121,10 +142,11 @@ export default function RegisterPage() {
 
   // ── Stepper indicator ───────────────────────────────────────────────────────
   const steps: { id: Step; label: string }[] = [
-    { id: 'account', label: 'Account'  },
-    { id: 'github',  label: 'GitHub'   },
-    { id: 'repo',    label: 'Repo'     },
-    { id: 'done',    label: 'Done'     },
+    { id: 'account',      label: 'Account' },
+    { id: 'verify-email', label: 'Verify'  },
+    { id: 'github',       label: 'GitHub'  },
+    { id: 'repo',         label: 'Repo'    },
+    { id: 'done',         label: 'Done'    },
   ];
   const stepIdx = steps.findIndex(s => s.id === step);
 
@@ -221,6 +243,48 @@ export default function RegisterPage() {
                 {loading ? 'Creating account…' : <>Continue <ChevronRight size={14} /></>}
               </button>
             </form>
+          )}
+
+          {/* ── Step 1b: Verify Email ── */}
+          {step === 'verify-email' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📧</div>
+                <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.375rem' }}>
+                  Check your inbox
+                </h2>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                  We sent a verification link to <strong>{email}</strong>.<br />
+                  Click it to activate your account.
+                </p>
+              </div>
+
+              {resendMsg && (
+                <div style={{
+                  padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)',
+                  background: 'rgba(13,148,136,0.08)', border: '1px solid rgba(13,148,136,0.25)',
+                  fontSize: '0.8rem', color: 'var(--accent-teal)',
+                }}>
+                  {resendMsg}
+                </div>
+              )}
+
+              <button
+                className="btn btn-primary"
+                onClick={() => setStep('github')}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                Continue to GitHub Setup <ChevronRight size={14} />
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={handleResend}
+                disabled={resendLoading}
+                style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', gap: '0.4rem' }}
+              >
+                <RefreshCw size={13} /> {resendLoading ? 'Sending…' : 'Resend verification email'}
+              </button>
+            </div>
           )}
 
           {/* ── Step 2: Connect GitHub ── */}

@@ -23,6 +23,7 @@ import ProfilePage       from './pages/ProfilePage';
 import FileExplorerPage  from './pages/FileExplorerPage';
 import AuthGuard         from './components/AuthGuard';
 import { useAuth }       from './store/useAuth';
+import VerifyPage        from './pages/VerifyPage';
 
 function AppInner() {
   const { toast } = useToast();
@@ -83,6 +84,7 @@ function AppInner() {
         {/* Public routes */}
         <Route path="/login"    element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/verify"   element={<VerifyPage />} />
 
         {/* Protected routes */}
         <Route path="/*" element={

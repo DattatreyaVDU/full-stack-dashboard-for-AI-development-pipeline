@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Shield, Github, Zap, Clock, Copy, Check, Trash2, RefreshCw, Crown, User } from 'lucide-react';
+import { Users, Shield, Github, Zap, Clock, Copy, Check, Trash2, RefreshCw, Crown, User, Mail, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 
 const API = (import.meta.env.VITE_API_URL ?? '') + '/api/admin';
 
 interface AdminUser {
-  id:           string;
-  name:         string;
-  email:        string;
-  role:         'admin' | 'user';
-  webhookToken: string;
-  github:       { username: string; selectedRepo: string | null } | null;
-  createdAt:    string;
+  id:            string;
+  name:          string;
+  email:         string;
+  role:          'admin' | 'user';
+  webhookToken:  string;
+  emailVerified: boolean;
+  github:        { username: string; selectedRepo: string | null } | null;
+  createdAt:     string;
 }
 
 interface Stats {
@@ -76,6 +77,24 @@ export default function AdminPage() {
     const res  = await fetch(`${API}/users/${id}/reset-token`, { method: 'POST', headers });
     const data = await res.json();
     if (data.user) setUsers(prev => prev.map(u => u.id === id ? { ...u, webhookToken: data.user.webhookToken } : u));
+  };
+
+  const [sendingVerify, setSendingVerify] = useState<string | null>(null);
+  const [verifyMsg,     setVerifyMsg]     = useState<{ id: string; msg: string } | null>(null);
+
+  const handleSendVerification = async (u: AdminUser) => {
+    setSendingVerify(u.id); setVerifyMsg(null);
+    const res  = await fetch(`${API}/users/${u.id}/send-verification`, { method: 'POST', headers });
+    const data = await res.json();
+    setSendingVerify(null);
+    setVerifyMsg({ id: u.id, msg: data.message ?? (res.ok ? 'Sent!' : data.error) });
+    setTimeout(() => setVerifyMsg(null), 4000);
+  };
+
+  const handleManualVerify = async (u: AdminUser) => {
+    const res  = await fetch(`${API}/users/${u.id}/verify`, { method: 'PATCH', headers });
+    const data = await res.json();
+    if (data.user) setUsers(prev => prev.map(x => x.id === u.id ? { ...x, emailVerified: true } : x));
   };
 
   const handleRoleToggle = async (u: AdminUser) => {
@@ -153,7 +172,7 @@ export default function AdminPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
-                  {['User', 'Role', 'GitHub', 'Repo', 'Webhook URL', 'Joined', 'Actions'].map(h => (
+                  {['User', 'Role', 'Email', 'GitHub', 'Repo', 'Webhook URL', 'Joined', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '0.625rem 1rem', textAlign: 'left', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -200,6 +219,37 @@ export default function AdminPage() {
                       >
                         {u.role === 'admin' ? '⚡ Admin' : 'User'}
                       </button>
+                    </td>
+
+                    {/* Email verification */}
+                    <td style={{ padding: '0.875rem 1rem' }}>
+                      {u.emailVerified ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-teal)' }}>
+                          <ShieldCheck size={12} /> Verified
+                        </span>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--accent-orange)', fontWeight: 600 }}>Not verified</span>
+                          {verifyMsg?.id === u.id ? (
+                            <span style={{ fontSize: '0.68rem', color: 'var(--accent-teal)' }}>{verifyMsg.msg}</span>
+                          ) : (
+                            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                              <button className="btn btn-ghost btn-sm" disabled={sendingVerify === u.id}
+                                onClick={() => handleSendVerification(u)}
+                                title="Send verification email"
+                                style={{ fontSize: '0.68rem', padding: '0.15rem 0.4rem', gap: '0.25rem' }}>
+                                <Mail size={10} /> {sendingVerify === u.id ? '…' : 'Send Email'}
+                              </button>
+                              <button className="btn btn-ghost btn-sm"
+                                onClick={() => handleManualVerify(u)}
+                                title="Mark as verified manually"
+                                style={{ fontSize: '0.68rem', padding: '0.15rem 0.4rem', gap: '0.25rem' }}>
+                                <Check size={10} /> Mark OK
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     {/* GitHub */}

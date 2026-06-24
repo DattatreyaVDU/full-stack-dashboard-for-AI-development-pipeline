@@ -3,7 +3,7 @@ const path   = require('path');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
-const DATA_DIR  = path.join(__dirname, '..', '..', 'data');
+const DATA_DIR   = path.join(__dirname, '..', '..', 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 function loadUsers() {
@@ -30,6 +30,10 @@ function findByWebhookToken(token) {
   return loadUsers().find(u => u.webhookToken === token) ?? null;
 }
 
+function findByVerificationToken(token) {
+  return loadUsers().find(u => u.verificationToken === token) ?? null;
+}
+
 async function createUser({ name, email, password }) {
   const users = loadUsers();
   if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
@@ -37,18 +41,28 @@ async function createUser({ name, email, password }) {
   }
   const hash = await bcrypt.hash(password, 10);
   const user = {
-    id:           uuidv4(),
+    id:                  uuidv4(),
     name,
     email,
-    passwordHash: hash,
-    role:         users.length === 0 ? 'admin' : 'user', // first user is admin
-    webhookToken: uuidv4().replace(/-/g, ''),
-    github:       null,  // { accessToken, username, selectedRepo }
-    createdAt:    new Date().toISOString(),
+    passwordHash:        hash,
+    role:                users.length === 0 ? 'admin' : 'user',
+    webhookToken:        uuidv4().replace(/-/g, ''),
+    github:              null,
+    emailVerified:       false,
+    verificationToken:   uuidv4(),
+    verificationExpiry:  new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    createdAt:           new Date().toISOString(),
   };
   users.push(user);
   saveUsers(users);
   return user;
+}
+
+function refreshVerificationToken(id) {
+  return updateUser(id, {
+    verificationToken:  uuidv4(),
+    verificationExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  });
 }
 
 function resetWebhookToken(id) {
@@ -79,10 +93,14 @@ function updateUser(id, updates) {
   return users[idx];
 }
 
-// Strip passwordHash before sending to client
+// Strip sensitive fields before sending to client
 function safeUser(user) {
-  const { passwordHash, ...safe } = user;
+  const { passwordHash, verificationToken, verificationExpiry, ...safe } = user;
   return safe;
 }
 
-module.exports = { loadUsers, findByEmail, findById, findByWebhookToken, createUser, verifyPassword, updateUser, resetWebhookToken, deleteUser, safeUser };
+module.exports = {
+  loadUsers, findByEmail, findById, findByWebhookToken, findByVerificationToken,
+  createUser, verifyPassword, updateUser, resetWebhookToken, refreshVerificationToken,
+  deleteUser, safeUser,
+};
