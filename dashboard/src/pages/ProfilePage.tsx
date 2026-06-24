@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User, Mail, Lock, Github, Zap, Copy, Check, Eye, EyeOff,
