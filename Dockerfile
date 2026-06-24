@@ -1,5 +1,5 @@
-# ── Stage 1: Build the React dashboard ──────────────────────────────────────
-FROM node:20-alpine AS frontend-builder
+# ── Stage 1: Build the React dashboard ───────────────────────────────────────
+FROM node:18-alpine AS frontend-builder
 
 WORKDIR /build/dashboard
 COPY dashboard/package*.json ./
@@ -7,8 +7,8 @@ RUN npm ci
 COPY dashboard/ ./
 RUN npm run build
 
-# ── Stage 2: Production backend ──────────────────────────────────────────────
-FROM node:20-alpine
+# ── Stage 2: Production backend ───────────────────────────────────────────────
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -22,8 +22,8 @@ COPY server/src ./src
 # Copy built frontend into server/public so Express serves it
 COPY --from=frontend-builder /build/dashboard/dist ./public
 
-# Create data directory for db.json
-RUN mkdir -p /app/data
+# Create data and projects directories (overridden by Docker volumes at runtime)
+RUN mkdir -p /app/data /projects
 
 EXPOSE 3001
 
