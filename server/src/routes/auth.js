@@ -6,7 +6,7 @@ const {
   findByVerificationToken, refreshVerificationToken, deleteUser, safeUser, loadUsers,
 } = require('../utils/users');
 const { signToken, requireAuth } = require('../middleware/auth');
-const { sendVerificationEmail }  = require('../utils/email');
+const { sendVerificationEmail, testSmtp } = require('../utils/email');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
@@ -149,6 +149,13 @@ router.delete('/account', requireAuth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── GET /api/auth/test-smtp — admin only, verifies SMTP credentials ───────────
+router.get('/test-smtp', requireAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const result = await testSmtp();
+  res.status(result.ok ? 200 : 500).json(result);
 });
 
 module.exports = router;
