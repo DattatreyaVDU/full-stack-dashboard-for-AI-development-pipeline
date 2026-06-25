@@ -162,6 +162,8 @@ router.post('/chat-mobile', optionalAuth, async (req, res) => {
 
   console.log(`[n8n-mobile] POST ${n8nUrl} | session=${sessionId || 'none'}`);
 
+  const sessionUserMap = req.app.get('sessionUserMap');
+
   fetch(n8nUrl, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -174,6 +176,20 @@ router.post('/chat-mobile', optionalAuth, async (req, res) => {
   }).then(async r => {
     const text = await r.text();
     console.log(`[n8n-mobile] Response ${r.status}: ${text.slice(0, 200)}`);
+    // Forward n8n's reply to the frontend via Socket.io
+    try {
+      const data   = JSON.parse(text);
+      const output = data.output ?? data.text ?? data.message ?? text;
+      if (output) {
+        const uid = sessionId ? sessionUserMap?.get(sessionId) : null;
+        if (uid) {
+          io.to('user:' + uid).emit('chat:response', { sessionId: sessionId || '', output: String(output) });
+        } else {
+          io.emit('chat:response', { sessionId: sessionId || '', output: String(output) });
+        }
+        console.log(`[n8n-mobile] chat:response forwarded → session=${sessionId}`);
+      }
+    } catch { /* response wasn't JSON or had no output field */ }
   }).catch(err => {
     if (!err.message?.includes('abort') && !err.message?.includes('signal')) {
       console.error(`[n8n-mobile] Error: ${err.message}`);
