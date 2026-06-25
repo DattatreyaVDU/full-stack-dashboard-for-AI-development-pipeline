@@ -2,12 +2,13 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Eye, Github, Layers, Rocket,
   Settings, Zap, Activity, MessageSquare, ShieldCheck, UserCircle, Code2, FolderOpen,
+  Smartphone, Globe,
 } from 'lucide-react';
 import { useAuth } from '../../store/useAuth';
 
 interface Props {
-  serverOnline: boolean;
-  buildsCount: number;
+  serverOnline:  boolean;
+  buildsCount:   number;
   wpBuildsCount: number;
 }
 
@@ -37,7 +38,10 @@ export default function Sidebar({ serverOnline, buildsCount, wpBuildsCount }: Pr
           )}
         </div>
         <NavLink to="/chat" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <MessageSquare className="nav-icon" /> New Project
+          <MessageSquare className="nav-icon" /> Website Projects
+        </NavLink>
+        <NavLink to="/chat-webapp" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Globe className="nav-icon" /> Website &amp; Mobile App
         </NavLink>
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <LayoutDashboard className="nav-icon" /> Overview
@@ -68,6 +72,16 @@ export default function Sidebar({ serverOnline, buildsCount, wpBuildsCount }: Pr
         </div>
         <NavLink to="/wordpress" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
           <Layers className="nav-icon" /> WP Projects
+        </NavLink>
+      </div>
+
+      {/* ── Mobile App Pipeline ── */}
+      <div className="sidebar-section" style={{ marginTop: '0.25rem' }}>
+        <div className="sidebar-section-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <Smartphone size={9} style={{ opacity: 0.6 }} /> Mobile App Pipeline
+        </div>
+        <NavLink to="/mobile-projects" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <Smartphone className="nav-icon" /> Mobile App Projects
         </NavLink>
       </div>
 

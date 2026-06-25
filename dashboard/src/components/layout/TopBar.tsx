@@ -7,16 +7,18 @@ import { DashboardState } from '../../types';
 import { AuthUser } from '../../store/useAuth';
 
 const ROUTES: Record<string, string> = {
-  '/chat':      'New Project',
-  '/':          'Overview',
-  '/preview':   'Live Preview',
-  '/github':    'GitHub Integration',
-  '/wordpress': 'WordPress Converter',
-  '/deploy':    'Deployment',
-  '/files':     'File Explorer',
-  '/settings':  'Settings',
-  '/profile':   'My Profile',
-  '/admin':     'Admin Panel',
+  '/chat':            'Website Projects',
+  '/chat-webapp':     'Website & Mobile App',
+  '/':                'Overview',
+  '/preview':         'Live Preview',
+  '/github':          'GitHub Integration',
+  '/wordpress':       'WordPress Converter',
+  '/deploy':          'Deployment',
+  '/files':           'File Explorer',
+  '/mobile-projects': 'Mobile App Projects',
+  '/settings':        'Settings',
+  '/profile':         'My Profile',
+  '/admin':           'Admin Panel',
 };
 
 interface Props {

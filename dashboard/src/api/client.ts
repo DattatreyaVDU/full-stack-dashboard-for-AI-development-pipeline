@@ -42,10 +42,13 @@ export const state = {
 };
 
 export const n8n = {
-  status: () => api.get('/n8n/status').then(r => r.data),
-  chat:   (message: string, sessionId: string, wakeup = false) =>
+  status:       () => api.get('/n8n/status').then(r => r.data),
+  chat:         (message: string, sessionId: string, wakeup = false) =>
     api.post('/n8n/chat', { message, sessionId, wakeup }).then(r => r.data),
-  stop:   () => api.post('/n8n/stop').then(r => r.data),
+  stop:         () => api.post('/n8n/stop').then(r => r.data),
+  statusMobile: () => api.get('/n8n/status-mobile').then(r => r.data),
+  chatMobile:   (message: string, sessionId: string, wakeup = false) =>
+    api.post('/n8n/chat-mobile', { message, sessionId, wakeup }).then(r => r.data),
 };
 
 export default api;

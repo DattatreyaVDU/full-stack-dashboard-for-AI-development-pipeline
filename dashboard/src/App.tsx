@@ -20,8 +20,9 @@ import LoginPage      from './pages/LoginPage';
 import RegisterPage   from './pages/RegisterPage';
 import AdminPage         from './pages/AdminPage';
 import ProfilePage       from './pages/ProfilePage';
-import FileExplorerPage  from './pages/FileExplorerPage';
-import AuthGuard         from './components/AuthGuard';
+import FileExplorerPage    from './pages/FileExplorerPage';
+import MobileProjectsPage  from './pages/MobileProjectsPage';
+import AuthGuard           from './components/AuthGuard';
 import { useAuth }       from './store/useAuth';
 import VerifyPage        from './pages/VerifyPage';
 
@@ -98,7 +99,9 @@ function AppInner() {
                   user={user} onLogout={logout}
                 />
                 <Routes>
-                  <Route path="/chat" element={<ChatPage latestBuild={state.latestBuild} builds={state.builds} />} />
+                  <Route path="/chat"        element={<ChatPage latestBuild={state.latestBuild} builds={state.builds} />} />
+                  <Route path="/chat-webapp" element={<ChatPage latestBuild={state.latestBuild} builds={state.builds} pipelineType="webapp" />} />
+                  <Route path="/mobile-projects" element={<MobileProjectsPage />} />
                   <Route path="/" element={<DashboardPage state={state} />} />
                   <Route path="/preview" element={<PreviewPage latestBuild={state.latestBuild} builds={state.builds} />} />
                   <Route path="/github"  element={<GitHubPage latestBuild={state.latestBuild} builds={state.builds} onPipelineStep={handlePipelineStep} />} />

@@ -30,14 +30,13 @@ interface ChatSession {
 }
 
 interface Props {
-  latestBuild: Build | null;
-  builds:      Build[];
+  latestBuild:    Build | null;
+  builds:         Build[];
+  pipelineType?:  'web' | 'webapp';
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SESSIONS_KEY       = 'n8n-sessions-v2';
-const ACTIVE_SESSION_KEY = 'n8n-active-session';
 const COMPLETION_TIMEOUT = 18000;
 
 const EXAMPLES = [
@@ -52,12 +51,12 @@ const EXAMPLES = [
 function msgKey(sessionId: string)  { return `n8n-msgs-${sessionId}`; }
 function buildKey(sessionId: string) { return `n8n-building-${sessionId}`; }
 
-function loadSessions(): ChatSession[] {
-  try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '[]'); } catch { return []; }
+function loadSessions(key: string): ChatSession[] {
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
 }
 
-function saveSessions(sessions: ChatSession[]) {
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+function saveSessions(key: string, sessions: ChatSession[]) {
+  localStorage.setItem(key, JSON.stringify(sessions));
 }
 
 function loadMessages(sessionId: string): Message[] {
@@ -115,15 +114,20 @@ let _requestInFlight                     = false;
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function ChatPage({ builds }: Props) {
+export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
   const navigate = useNavigate();
+  const isWebapp     = pipelineType === 'webapp';
+  const SESSIONS_KEY       = isWebapp ? 'n8n-webapp-sessions-v1' : 'n8n-sessions-v2';
+  const ACTIVE_SESSION_KEY = isWebapp ? 'n8n-webapp-active-session' : 'n8n-active-session';
+  const apiChat   = isWebapp ? n8nApi.chatMobile   : n8nApi.chat;
+  const apiStatus = isWebapp ? n8nApi.statusMobile  : n8nApi.status;
 
   // Sessions list
-  const [sessions,       setSessions]       = useState<ChatSession[]>(loadSessions);
+  const [sessions,       setSessions]       = useState<ChatSession[]>(() => loadSessions(SESSIONS_KEY));
   const [activeSession,  setActiveSession]  = useState<ChatSession | null>(() => {
-    const sessions = loadSessions();
+    const all     = loadSessions(SESSIONS_KEY);
     const activeId = localStorage.getItem(ACTIVE_SESSION_KEY);
-    return sessions.find(s => s.id === activeId) ?? sessions[0] ?? null;
+    return all.find(s => s.id === activeId) ?? all[0] ?? null;
   });
 
   // Chat state (per active session)
@@ -174,7 +178,7 @@ export default function ChatPage({ builds }: Props) {
   }, [building, activeSession]);
 
   useEffect(() => {
-    n8nApi.status().then(s => setN8nConfigured(s.configured)).catch(() => setN8nConfigured(false));
+    apiStatus().then(s => setN8nConfigured(s.configured)).catch(() => setN8nConfigured(false));
   }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
@@ -186,7 +190,7 @@ export default function ChatPage({ builds }: Props) {
     const s = createSession();
     setSessions(prev => {
       const next = [s, ...prev];
-      saveSessions(next);
+      saveSessions(SESSIONS_KEY, next);
       return next;
     });
     setActiveSession(s);
@@ -209,7 +213,7 @@ export default function ChatPage({ builds }: Props) {
     deleteSessionData(sessionId);
     setSessions(prev => {
       const next = prev.filter(s => s.id !== sessionId);
-      saveSessions(next);
+      saveSessions(SESSIONS_KEY, next);
       return next;
     });
     if (activeSession?.id === sessionId) {
@@ -225,7 +229,7 @@ export default function ChatPage({ builds }: Props) {
     setActiveSession(updated);
     setSessions(prev => {
       const next = prev.map(s => s.id === activeSession.id ? updated : s);
-      saveSessions(next);
+      saveSessions(SESSIONS_KEY, next);
       return next;
     });
   }, [activeSession]);
@@ -339,14 +343,14 @@ export default function ChatPage({ builds }: Props) {
     let session = activeSession;
     if (!session) {
       session = createSession();
-      setSessions(prev => { const next = [session!, ...prev]; saveSessions(next); return next; });
+      setSessions(prev => { const next = [session!, ...prev]; saveSessions(SESSIONS_KEY, next); return next; });
       setActiveSession(session);
     }
     const greeting: Message = { id: 'greeting', role: 'assistant', ts: new Date(), text: 'Hi there! 👋\nMy name is Nathan. How can I assist you today?' };
     setMessages([greeting]);
     setChatStarted(true);
     setTimeout(() => inputRef.current?.focus(), 100);
-    try { await n8nApi.chat('hi', session.id, true); } catch { /* silent */ }
+    try { await apiChat('hi', session.id, true); } catch { /* silent */ }
   }, [activeSession]);
 
   const handleStop = useCallback(async () => {
@@ -368,7 +372,7 @@ export default function ChatPage({ builds }: Props) {
     _requestInFlight = true;
     let isProcessing = false;
     try {
-      const data = await n8nApi.chat(msg, activeSession.id);
+      const data = await apiChat(msg, activeSession.id);
       if (data.processing) { isProcessing = true; return; }
       const reply: string = data.output ?? 'No response from n8n.';
       if (isMountedRef.current) processN8nOutput(reply);

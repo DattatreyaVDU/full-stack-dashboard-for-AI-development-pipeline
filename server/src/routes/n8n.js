@@ -139,6 +139,67 @@ router.post('/stop', optionalAuth, async (req, res) => {
   }
 });
 
+// POST /api/n8n/chat-mobile — proxies Website & Mobile App chat to NAS n8n
+router.post('/chat-mobile', optionalAuth, async (req, res) => {
+  const { message, sessionId, wakeup = false } = req.body;
+  const userId = req.user?.id ?? null;
+
+  if (!message) return res.status(400).json({ error: 'message is required' });
+
+  const n8nUrl = process.env.N8N_MOBILE_CHAT_URL;
+  if (!n8nUrl) {
+    return res.status(503).json({ error: 'N8N_MOBILE_CHAT_URL is not set' });
+  }
+
+  const io          = req.app.get('io');
+  const updateState = req.app.get('updateState');
+
+  if (sessionId) {
+    const sessionUserMap = req.app.get('sessionUserMap');
+    sessionUserMap.set(sessionId, userId);
+    setTimeout(() => sessionUserMap.delete(sessionId), 2 * 60 * 60 * 1000);
+  }
+
+  console.log(`[n8n-mobile] POST ${n8nUrl} | session=${sessionId || 'none'}`);
+
+  fetch(n8nUrl, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      chatInput: message,
+      sessionId: sessionId || 'dashboard-default',
+      username:  req.user?.name || req.user?.email?.split('@')[0] || 'shared',
+    }),
+    signal: AbortSignal.timeout(600000),
+  }).then(async r => {
+    const text = await r.text();
+    console.log(`[n8n-mobile] Response ${r.status}: ${text.slice(0, 200)}`);
+  }).catch(err => {
+    if (!err.message?.includes('abort') && !err.message?.includes('signal')) {
+      console.error(`[n8n-mobile] Error: ${err.message}`);
+    }
+  });
+
+  if (!wakeup) {
+    updateState({ pipeline: { n8n: 'running' } });
+    io.emit('pipeline:step', { step: 'n8n', status: 'running' });
+  }
+  return res.json({ processing: true, message: 'Request sent to n8n mobile pipeline' });
+});
+
+// GET /api/n8n/status-mobile — check mobile pipeline config
+router.get('/status-mobile', async (req, res) => {
+  const url = process.env.N8N_MOBILE_CHAT_URL;
+  if (!url) return res.json({ configured: false, url: null });
+  let reachable = false;
+  try {
+    const baseUrl = new URL(url);
+    const r = await fetch(`${baseUrl.protocol}//${baseUrl.host}`, { method: 'HEAD', signal: AbortSignal.timeout(4000) });
+    reachable = r.status < 500;
+  } catch { reachable = false; }
+  res.json({ configured: true, reachable, url: url.replace(/\/webhook\/[^/]+\/chat/, '/webhook/****/chat') });
+});
+
 // GET /api/n8n/status — check config and connectivity
 router.get('/status', async (req, res) => {
   const url = process.env.N8N_CHAT_URL;
