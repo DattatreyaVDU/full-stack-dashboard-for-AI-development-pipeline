@@ -2,6 +2,10 @@ const express = require('express');
 const router  = express.Router();
 const fs      = require('fs');
 const path    = require('path');
+const { requireAuth } = require('../middleware/auth');
+
+// All project routes require authentication
+router.use(requireAuth);
 
 const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(__dirname, '..', '..', '..', 'projects');
 
@@ -77,15 +81,21 @@ function formatSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// Derive the folder segment from a user record (matches n8n File Creation node logic)
+function userToSegment(user) {
+  return user.name.toLowerCase().replace(/[^a-z0-9_-]/gi, '_');
+}
+
 // ── GET /api/projects ──────────────────────────────────────────────────────────
-// PROJECTS_DIR layout: <PROJECTS_DIR>/<userSegment>/<projectName>/...
-// We flatten all user segments so the API returns all projects with a userSegment field.
+// Admin sees all users' projects. Regular users only see their own segment.
 router.get('/', (req, res) => {
   if (!fs.existsSync(PROJECTS_DIR)) {
     return res.json({ projects: [], projectsDir: PROJECTS_DIR });
   }
 
-  const projects = [];
+  const isAdmin      = req.user.role === 'admin';
+  const mySegment    = userToSegment(req.user);
+  const projects     = [];
   let topLevel;
   try { topLevel = fs.readdirSync(PROJECTS_DIR); } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -97,14 +107,17 @@ router.get('/', (req, res) => {
     try { segStat = fs.statSync(segPath); } catch { continue; }
     if (!segStat.isDirectory()) continue;
 
-    // Check if this directory IS a project (starts with web_ or wp_) or a user segment
     const isProject = /^(web_|wp_)/.test(segment);
 
     if (isProject) {
-      // Legacy flat layout: project sits directly in PROJECTS_DIR
-      pushProject(projects, PROJECTS_DIR, segment, 'shared');
+      // Legacy flat layout — only admin or 'shared' segment users see these
+      if (isAdmin || mySegment === 'shared') {
+        pushProject(projects, PROJECTS_DIR, segment, 'shared');
+      }
     } else {
-      // User segment folder — each child is a project
+      // User segment folder — skip if not this user's segment (unless admin)
+      if (!isAdmin && segment !== mySegment) continue;
+
       let projectNames;
       try { projectNames = fs.readdirSync(segPath); } catch { continue; }
       for (const projName of projectNames) {
@@ -151,25 +164,39 @@ function pushProject(projects, parentDir, name, userSegment) {
   });
 }
 
-// Resolve a project name → absolute directory, searching all user segments.
-function resolveProjectDir(name) {
-  const safe = path.basename(name);
-  // Direct (legacy flat layout)
-  const direct = path.join(PROJECTS_DIR, safe);
-  if (fs.existsSync(direct)) return direct;
-  // Search inside user-segment subdirectories
-  let segments;
-  try { segments = fs.readdirSync(PROJECTS_DIR); } catch { return null; }
-  for (const seg of segments) {
-    const candidate = path.join(PROJECTS_DIR, seg, safe);
-    if (fs.existsSync(candidate)) return candidate;
+// Resolve a project name → absolute directory.
+// Non-admin users can only access their own segment.
+function resolveProjectDir(name, user) {
+  const safe      = path.basename(name);
+  const isAdmin   = user?.role === 'admin';
+  const mySegment = user ? userToSegment(user) : null;
+
+  // Check user's own segment first
+  if (mySegment) {
+    const own = path.join(PROJECTS_DIR, mySegment, safe);
+    if (fs.existsSync(own)) return own;
   }
+
+  // Legacy flat layout (shared)
+  const direct = path.join(PROJECTS_DIR, safe);
+  if (fs.existsSync(direct) && (isAdmin || mySegment === 'shared')) return direct;
+
+  // Admin can search all segments
+  if (isAdmin) {
+    let segments;
+    try { segments = fs.readdirSync(PROJECTS_DIR); } catch { return null; }
+    for (const seg of segments) {
+      const candidate = path.join(PROJECTS_DIR, seg, safe);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+
   return null;
 }
 
 // ── GET /api/projects/:name/tree ──────────────────────────────────────────────
 router.get('/:name/tree', (req, res) => {
-  const projDir = resolveProjectDir(req.params.name);
+  const projDir = resolveProjectDir(req.params.name, req.user);
   if (!projDir) return res.status(404).json({ error: 'Project not found' });
 
   const safeName = path.basename(projDir);
@@ -191,7 +218,7 @@ router.get('/:name/file', (req, res) => {
   const filePath = req.query.path;
   if (!filePath) return res.status(400).json({ error: 'path query param required' });
 
-  const projDir = resolveProjectDir(req.params.name);
+  const projDir = resolveProjectDir(req.params.name, req.user);
   if (!projDir) return res.status(404).json({ error: 'Project not found' });
 
   // Security: resolve and ensure it stays inside the project dir

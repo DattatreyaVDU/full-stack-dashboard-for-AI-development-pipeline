@@ -106,8 +106,13 @@ export default function FileExplorerPage() {
   const [loadingFile, setLoadingFile]   = useState(false);
   const [copied, setCopied]             = useState(false);
 
+  const authHeaders = () => {
+    const token = localStorage.getItem('n8n-auth-token') ?? '';
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   useEffect(() => {
-    fetch(`${SERVER}/api/projects`)
+    fetch(`${SERVER}/api/projects`, { headers: authHeaders() })
       .then(r => r.json())
       .then(d => {
         setProjects(d.projects || []);
@@ -121,7 +126,7 @@ export default function FileExplorerPage() {
     setLoading(true);
     setSelectedFile('');
     setFileContent('');
-    fetch(`${SERVER}/api/projects/${encodeURIComponent(activeProject)}/tree`)
+    fetch(`${SERVER}/api/projects/${encodeURIComponent(activeProject)}/tree`, { headers: authHeaders() })
       .then(r => r.json())
       .then(d => setTree(d.tree || []))
       .catch(() => setTree([]))
@@ -132,7 +137,7 @@ export default function FileExplorerPage() {
     setSelectedFile(relPath);
     setFileContent('');
     setLoadingFile(true);
-    fetch(`${SERVER}/api/projects/${encodeURIComponent(activeProject)}/file?path=${encodeURIComponent(relPath)}`)
+    fetch(`${SERVER}/api/projects/${encodeURIComponent(activeProject)}/file?path=${encodeURIComponent(relPath)}`, { headers: authHeaders() })
       .then(r => r.json())
       .then(d => {
         setFileContent(d.content ?? '');
@@ -212,7 +217,7 @@ export default function FileExplorerPage() {
         <button
           onClick={() => {
             setLoading(true);
-            fetch(`${SERVER}/api/projects/${encodeURIComponent(activeProject)}/tree`)
+            fetch(`${SERVER}/api/projects/${encodeURIComponent(activeProject)}/tree`, { headers: authHeaders() })
               .then(r => r.json()).then(d => setTree(d.tree || []))
               .finally(() => setLoading(false));
           }}

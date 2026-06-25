@@ -68,7 +68,8 @@ export default function DashboardPage({ state }: Props) {
 
   const fetchProjects = useCallback(() => {
     setLoadingProjects(true);
-    fetch(`${SERVER}/api/projects`)
+    const token = localStorage.getItem('n8n-auth-token') ?? '';
+    fetch(`${SERVER}/api/projects`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(r => r.json())
       .then(data => {
         const list: DiskProject[] = data.projects || [];
