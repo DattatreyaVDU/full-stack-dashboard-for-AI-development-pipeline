@@ -475,61 +475,72 @@ export default function ChatPage({ builds }: Props) {
 
         {/* No session / landing screen */}
         {!chatStarted ? (
-          <div style={{
-            flex: 1, overflowY: 'auto', minHeight: 0,
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', padding: '2rem', gap: '2rem',
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{
-                width: 72, height: 72, borderRadius: '20px', margin: '0 auto 1.25rem',
-                background: 'linear-gradient(135deg, var(--accent-teal), var(--accent-blue))',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 8px 32px rgba(45,212,191,0.25)',
-              }}>
-                <Sparkles size={34} color="#fff" />
-              </div>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                AI Code Pipeline
-              </h1>
-              <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginTop: '0.625rem', maxWidth: 420, lineHeight: 1.6 }}>
-                Describe your website idea and the AI will generate complete React &amp; WordPress implementation prompts.
-              </p>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem', width: '100%', maxWidth: 480 }}>
-              {EXAMPLES.map((ex, i) => (
-                <div key={i} style={{
-                  background: 'var(--bg-card)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)', padding: '0.875rem', cursor: 'default',
+          /* Outer: scrollable container — justifyContent NOT here to avoid top-clip bug */
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {/* Inner: centering wrapper — minHeight 100% ensures centering works AND overflow scrolls correctly */}
+            <div style={{
+              minHeight: '100%',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', padding: '1.25rem 2rem', gap: '1.25rem',
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: '16px', margin: '0 auto 0.875rem',
+                  background: 'linear-gradient(135deg, var(--accent-teal), var(--accent-blue))',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 6px 24px rgba(45,212,191,0.25)',
                 }}>
-                  <div style={{ fontSize: '1.25rem', marginBottom: '0.375rem' }}>{ex.icon}</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--text-primary)' }}>{ex.title}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>{ex.desc}</div>
+                  <Sparkles size={26} color="#fff" />
                 </div>
-              ))}
-            </div>
-
-            {n8nConfigured === false && (
-              <div style={{
-                background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.25)',
-                borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem',
-                display: 'flex', alignItems: 'center', gap: '0.625rem',
-                fontSize: '0.8rem', color: 'var(--accent-orange)', maxWidth: 480, width: '100%',
-              }}>
-                <AlertCircle size={14} style={{ flexShrink: 0 }} />
-                <span><strong>n8n not connected.</strong> Set <code>N8N_CHAT_URL</code> in Render environment variables.</span>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  AI Code Pipeline
+                </h1>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem', maxWidth: 400, lineHeight: 1.55 }}>
+                  Describe your website idea and the AI will generate complete React &amp; WordPress implementation prompts.
+                </p>
               </div>
-            )}
 
-            <button
-              className="btn btn-primary"
-              style={{ padding: '0.875rem 2.5rem', fontSize: '1rem', fontWeight: 600, borderRadius: 'var(--radius-md)' }}
-              onClick={handleStart}
-            >
-              <Zap size={18} /> Start New Project <ArrowRight size={16} />
-            </button>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Generates React + WordPress prompts in 5–6 minutes</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', width: '100%', maxWidth: 460 }}>
+                {EXAMPLES.map((ex, i) => (
+                  <div
+                    key={i}
+                    onClick={() => { handleStart(); setTimeout(() => { setInput(ex.title); }, 300); }}
+                    style={{
+                      background: 'var(--bg-card)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)', padding: '0.75rem', cursor: 'pointer',
+                      transition: 'border-color 0.15s, background 0.15s',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent-teal)'; (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-card-hover)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-card)'; }}
+                  >
+                    <div style={{ fontSize: '1.125rem', marginBottom: '0.25rem' }}>{ex.icon}</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{ex.title}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.1rem', lineHeight: 1.4 }}>{ex.desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {n8nConfigured === false && (
+                <div style={{
+                  background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.25)',
+                  borderRadius: 'var(--radius-md)', padding: '0.625rem 0.875rem',
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  fontSize: '0.8rem', color: 'var(--accent-orange)', maxWidth: 460, width: '100%',
+                }}>
+                  <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                  <span><strong>n8n not connected.</strong> Set <code>N8N_CHAT_URL</code> in environment variables.</span>
+                </div>
+              )}
+
+              <button
+                className="btn btn-primary"
+                style={{ padding: '0.75rem 2.25rem', fontSize: '0.9375rem', fontWeight: 600, borderRadius: 'var(--radius-md)' }}
+                onClick={handleStart}
+              >
+                <Zap size={16} /> Start New Project <ArrowRight size={15} />
+              </button>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '-0.5rem' }}>Generates React + WordPress prompts in 5–6 minutes</p>
+            </div>
           </div>
         ) : (
           <>
