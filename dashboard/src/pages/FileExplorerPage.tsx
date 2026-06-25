@@ -105,6 +105,7 @@ export default function FileExplorerPage() {
   const [loading, setLoading]           = useState(false);
   const [loadingFile, setLoadingFile]   = useState(false);
   const [copied, setCopied]             = useState(false);
+  const [loadError, setLoadError]       = useState('');
 
   const authHeaders = () => {
     const token = localStorage.getItem('n8n-auth-token') ?? '';
@@ -112,13 +113,17 @@ export default function FileExplorerPage() {
   };
 
   useEffect(() => {
+    setLoadError('');
     fetch(`${SERVER}/api/projects`, { headers: authHeaders() })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`Server returned ${r.status}`);
+        return r.json();
+      })
       .then(d => {
         setProjects(d.projects || []);
         if (d.projects?.length > 0) setActiveProject(d.projects[0].name);
       })
-      .catch(() => {});
+      .catch(err => setLoadError(err.message ?? 'Failed to load projects'));
   }, []);
 
   useEffect(() => {
@@ -190,12 +195,24 @@ export default function FileExplorerPage() {
   return (
     <div className="page-body" style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0' }}>
 
+      {/* ── Load error banner ── */}
+      {loadError && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          padding: '0.625rem 1rem', marginBottom: '0.75rem',
+          background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)',
+          borderRadius: 'var(--radius-md)', fontSize: '0.8rem', color: 'var(--accent-red)',
+        }}>
+          Could not load projects: {loadError}
+        </div>
+      )}
+
       {/* ── Project selector bar ── */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: '0.75rem',
         padding: '0.625rem 1rem', marginBottom: '0.75rem',
         background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)', flexWrap: 'wrap',
+        borderRadius: 'var(--radius-md)', flexWrap: 'wrap',
       }}>
         <FolderOpen size={14} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
         <select

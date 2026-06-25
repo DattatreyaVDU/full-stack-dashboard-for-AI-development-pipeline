@@ -70,15 +70,21 @@ export default function DashboardPage({ state }: Props) {
     setLoadingProjects(true);
     const token = localStorage.getItem('n8n-auth-token') ?? '';
     fetch(`${SERVER}/api/projects`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(data => {
         const list: DiskProject[] = data.projects || [];
         setDiskProjects(list);
-        if (list.length > 0 && !selectedProject) setSelected(list[0].name);
+        // Only auto-select when nothing is selected yet
+        setSelected(prev => (prev || list[0]?.name || ''));
       })
       .catch(() => {})
       .finally(() => setLoadingProjects(false));
-  }, [selectedProject]);
+  // No external deps — reads token from localStorage directly
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { fetchProjects(); }, []);
 

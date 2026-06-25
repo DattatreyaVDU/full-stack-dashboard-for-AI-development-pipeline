@@ -102,7 +102,7 @@ export default function DeployPage({ pipeline, deployLogs, onClearLogs }: Props)
             </div>
           ) : (
             deployLogs.map((log, i) => (
-              <div key={i} className={`deploy-log-line ${log.type}`}>
+              <div key={`${log.ts}-${i}`} className={`deploy-log-line ${log.type}`}>
                 <span className="deploy-log-ts">
                   {new Date(log.ts).toLocaleTimeString()}
                 </span>

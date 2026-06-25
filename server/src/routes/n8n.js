@@ -151,18 +151,16 @@ router.post('/chat-mobile', optionalAuth, async (req, res) => {
     return res.status(503).json({ error: 'N8N_MOBILE_CHAT_URL is not set' });
   }
 
-  const io          = req.app.get('io');
-  const updateState = req.app.get('updateState');
+  const io             = req.app.get('io');
+  const updateState    = req.app.get('updateState');
+  const sessionUserMap = req.app.get('sessionUserMap');
 
   if (sessionId) {
-    const sessionUserMap = req.app.get('sessionUserMap');
     sessionUserMap.set(sessionId, userId);
     setTimeout(() => sessionUserMap.delete(sessionId), 2 * 60 * 60 * 1000);
   }
 
   console.log(`[n8n-mobile] POST ${n8nUrl} | session=${sessionId || 'none'}`);
-
-  const sessionUserMap = req.app.get('sessionUserMap');
 
   fetch(n8nUrl, {
     method:  'POST',

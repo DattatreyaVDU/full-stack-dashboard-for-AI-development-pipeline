@@ -63,7 +63,7 @@ router.get('/verify/:token', (req, res) => {
   if (!user) {
     return res.status(400).json({ error: 'Invalid or expired verification link.' });
   }
-  if (new Date(user.verificationExpiry) < new Date()) {
+  if (new Date(user.verificationExpiry).getTime() < Date.now()) {
     return res.status(400).json({ error: 'This verification link has expired. Please request a new one.' });
   }
   if (user.emailVerified) {

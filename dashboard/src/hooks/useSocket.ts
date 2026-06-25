@@ -13,14 +13,31 @@ interface SocketHandlers {
 }
 
 export function useSocket(handlers: SocketHandlers) {
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef   = useRef<Socket | null>(null);
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
+  const disconnect = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+  }, []);
+
   const connect = useCallback(() => {
+    // If already connected with a valid socket, skip
     if (socketRef.current?.connected) return;
+    // Clean up any stale disconnected socket first
+    if (socketRef.current) {
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
 
     const token = localStorage.getItem('n8n-auth-token') ?? '';
+    // Don't connect if there's no token — AuthGuard hasn't let user through yet
+    if (!token) return;
+
     socketRef.current = io('/', {
       auth:                 { token },
       transports:           ['polling', 'websocket'],
@@ -58,8 +75,8 @@ export function useSocket(handlers: SocketHandlers) {
 
     socketRef.current.on('vscode:open', (data: { filePath: string }) => {
       handlersRef.current.onVSCodeOpen?.(data);
-      // Open VS Code via URL protocol
-      window.location.href = `vscode://file/${data.filePath}`;
+      // Open VS Code via URL protocol — use open() so page doesn't navigate away
+      window.open(`vscode://file/${data.filePath}`, '_self');
     });
 
     socketRef.current.on('chat:response', (data: { sessionId: string; output: string }) => {
@@ -71,10 +88,8 @@ export function useSocket(handlers: SocketHandlers) {
 
   useEffect(() => {
     connect();
-    return () => {
-      socketRef.current?.disconnect();
-    };
-  }, [connect]);
+    return () => { disconnect(); };
+  }, [connect, disconnect]);
 
-  return { socket: socketRef.current };
+  return { socket: socketRef.current, disconnect };
 }

@@ -33,6 +33,9 @@ const TOKEN_KEY = 'n8n-auth-token';
 const USER_KEY  = 'n8n-auth-user';
 const BASE      = (import.meta.env.VITE_API_URL ?? '') + '/api/auth';
 
+// Callback set by AuthProvider so apiFetch can trigger logout on 401
+let _onUnauthorized: (() => void) | null = null;
+
 async function apiFetch(path: string, opts: RequestInit = {}, token?: string) {
   const t   = token ?? localStorage.getItem(TOKEN_KEY) ?? '';
   const res = await fetch(`${BASE}${path}`, {
@@ -43,6 +46,11 @@ async function apiFetch(path: string, opts: RequestInit = {}, token?: string) {
       ...(opts.headers ?? {}),
     },
   });
+  // Token expired or revoked — clear session so user is sent to login
+  if (res.status === 401 && path !== '/login' && path !== '/register') {
+    _onUnauthorized?.();
+    throw new Error('Session expired. Please sign in again.');
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? 'Request failed');
   return data;
@@ -98,6 +106,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(USER_KEY);
     setUser(null);
   }, []);
+
+  // Register auto-logout handler so apiFetch can clear session on 401
+  useEffect(() => {
+    _onUnauthorized = logout;
+    return () => { _onUnauthorized = null; };
+  }, [logout]);
 
   const refreshUser = useCallback(async () => {
     const data = await apiFetch('/me');

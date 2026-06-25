@@ -2,6 +2,9 @@ const jwt        = require('jsonwebtoken');
 const { findById } = require('../utils/users');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
+if (!process.env.JWT_SECRET) {
+  console.warn('[auth] WARNING: JWT_SECRET env var not set — using insecure default. Set JWT_SECRET in Render environment.');
+}
 
 function signToken(userId) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '4h' });

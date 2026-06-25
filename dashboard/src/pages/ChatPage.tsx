@@ -186,7 +186,9 @@ export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
 
   useEffect(() => {
     apiStatus().then(s => setN8nConfigured(s.configured)).catch(() => setN8nConfigured(false));
-  }, []);
+  // apiStatus is stable per pipeline type — only run on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWebapp]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
 
@@ -205,7 +207,9 @@ export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
     setLoading(false);
     setBuilding(false);
     builtPagesRef.current = [];
-  }, []);
+  // isWebapp and SESSIONS_KEY are constant per component instance (key prop ensures remount)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWebapp, SESSIONS_KEY]);
 
   const switchToSession = useCallback((session: ChatSession) => {
     if (completionTimer.current) clearTimeout(completionTimer.current);
@@ -315,7 +319,9 @@ export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
   // Listen for async PM responses via Socket.IO → window event
   useEffect(() => {
     const handler = (e: Event) => {
-      const { output } = (e as CustomEvent<{ output: string }>).detail;
+      const detail = (e as CustomEvent<{ output?: string }>).detail;
+      const output = detail?.output;
+      if (!output || typeof output !== 'string') return; // guard malformed events
       setLoading(false);
       setChatStarted(true);
       if (isMountedRef.current) {
@@ -357,8 +363,9 @@ export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
     setMessages([greeting]);
     setChatStarted(true);
     setTimeout(() => inputRef.current?.focus(), 100);
-    try { await apiChat('hi', session.id, true); } catch { /* silent */ }
-  }, [activeSession]);
+    try { await apiChat('hi', session.id, true); } catch { /* silent wakeup ping */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSession, apiChat]);
 
   const handleStop = useCallback(async () => {
     if (completionTimer.current) clearTimeout(completionTimer.current);
@@ -366,8 +373,12 @@ export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
     setBuilding(false);
     _requestInFlight = false;
     addMessage('system', 'Execution stopped by user.');
-    try { await n8nApi.stop(); } catch { /* best-effort */ }
-  }, [addMessage]);
+    // Only call stop on the web pipeline — webapp (NAS) has no remote stop API
+    if (!isWebapp) {
+      try { await n8nApi.stop(); } catch { /* best-effort */ }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addMessage, isWebapp]);
 
   const send = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim();
