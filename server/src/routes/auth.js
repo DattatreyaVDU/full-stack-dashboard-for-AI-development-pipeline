@@ -19,12 +19,17 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
   try {
-    const user  = await createUser({ name, email, password });
+    let user  = await createUser({ name, email, password });
     const token = signToken(user.id);
 
-    // Send verification email in background — don't block registration
-    const verifyUrl = `${FRONTEND_URL}/verify?token=${user.verificationToken}`;
-    sendVerificationEmail(user, verifyUrl).catch(() => {});
+    // Auto-verify when no email service is configured (Render without SMTP, NAS, local)
+    if (!isEmailConfigured() || process.env.SKIP_EMAIL_VERIFICATION === 'true') {
+      user = updateUser(user.id, { emailVerified: true, verificationToken: null, verificationExpiry: null });
+    } else {
+      // Send verification email in background — don't block registration
+      const verifyUrl = `${FRONTEND_URL}/verify?token=${user.verificationToken}`;
+      sendVerificationEmail(user, verifyUrl).catch(() => {});
+    }
 
     res.status(201).json({ token, user: safeUser(user) });
   } catch (err) {
