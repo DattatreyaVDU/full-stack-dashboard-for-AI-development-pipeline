@@ -125,26 +125,48 @@ export default function GitHubPage({ latestBuild, builds, onPipelineStep }: Prop
   return (
     <div className="page-body">
 
-      {/* ── Top bar: status + actions ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {loadingStatus ? (
-            <Loader2 size={16} style={{ animation: 'spin .65s linear infinite', color: 'var(--accent-blue)' }} />
-          ) : status?.connected ? (
-            <CheckCircle size={16} style={{ color: 'var(--accent-green)' }} />
-          ) : (
-            <XCircle size={16} style={{ color: 'var(--accent-red)' }} />
-          )}
-          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-            {loadingStatus ? 'Checking…' : status?.connected ? `Connected — ${status.repoName}` : 'Not Connected'}
-          </span>
-          {status?.connected && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              branch: {status.defaultBranch}
-            </span>
-          )}
+      {/* ── Status card ── */}
+      <div
+        className="card"
+        style={{
+          marginBottom: '1.25rem', padding: '1rem 1.25rem',
+          borderColor: loadingStatus ? 'var(--border)' :
+                       status?.connected ? 'rgba(45,212,191,0.3)' : 'rgba(248,113,113,0.3)',
+          display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
+        }}
+      >
+        {/* Icon + text */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+            background: loadingStatus ? 'var(--bg-surface)' :
+                        status?.connected ? 'rgba(45,212,191,0.1)' : 'rgba(248,113,113,0.1)',
+            border: `1.5px solid ${loadingStatus ? 'var(--border)' : status?.connected ? 'rgba(45,212,191,0.3)' : 'rgba(248,113,113,0.3)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {loadingStatus
+              ? <Loader2 size={17} style={{ animation: 'spin .65s linear infinite', color: 'var(--accent-blue)' }} />
+              : status?.connected
+                ? <CheckCircle size={17} style={{ color: 'var(--accent-teal)' }} />
+                : <XCircle    size={17} style={{ color: 'var(--accent-red)'  }} />}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+              {loadingStatus ? 'Checking connection…' :
+               status?.connected ? status.repoName : 'GitHub not connected'}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+              {loadingStatus ? 'Verifying GitHub token and repository access' :
+               status?.connected ? (
+                 <>branch <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-teal)' }}>{status.defaultBranch}</code>
+                 {' · '}{status.private ? '🔒 Private' : '🌍 Public'}
+                 {status.lastPush && <> · last push {new Date(status.lastPush).toLocaleDateString()}</>}</>
+               ) : (status?.error ?? 'Click Configure Repo to set up your GitHub token')}
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
           <button className="btn btn-ghost btn-sm" onClick={loadStatus} disabled={loadingStatus}>
             <RefreshCw size={13} /> Refresh
           </button>
