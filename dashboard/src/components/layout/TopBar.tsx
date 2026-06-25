@@ -13,6 +13,7 @@ const ROUTES: Record<string, string> = {
   '/github':    'GitHub Integration',
   '/wordpress': 'WordPress Converter',
   '/deploy':    'Deployment',
+  '/files':     'File Explorer',
   '/settings':  'Settings',
   '/profile':   'My Profile',
   '/admin':     'Admin Panel',

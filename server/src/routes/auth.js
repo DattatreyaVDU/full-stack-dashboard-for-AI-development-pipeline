@@ -6,7 +6,7 @@ const {
   findByVerificationToken, refreshVerificationToken, deleteUser, safeUser, loadUsers,
 } = require('../utils/users');
 const { signToken, requireAuth } = require('../middleware/auth');
-const { sendVerificationEmail, testSmtp } = require('../utils/email');
+const { sendVerificationEmail, testSmtp, isEmailConfigured } = require('../utils/email');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
@@ -38,8 +38,13 @@ router.post('/login', async (req, res) => {
   if (!email || !password)
     return res.status(400).json({ error: 'email and password are required' });
 
-  const user = await verifyPassword(email, password);
+  let user = await verifyPassword(email, password);
   if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+  // Auto-verify accounts when no email service is configured (NAS/local deployments)
+  if (!user.emailVerified && !isEmailConfigured() && process.env.SKIP_EMAIL_VERIFICATION !== 'true') {
+    user = updateUser(user.id, { emailVerified: true, verificationToken: null, verificationExpiry: null });
+  }
 
   const token = signToken(user.id);
   res.json({ token, user: safeUser(user) });

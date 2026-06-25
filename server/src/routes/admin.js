@@ -21,7 +21,6 @@ router.get('/users', (req, res) => {
 
 // GET /api/admin/stats
 router.get('/stats', (req, res) => {
-  const state = req.app.get('state');
   const users = loadUsers();
   const { builds, wpBuilds } = db.getAllBuilds();
   res.json({
@@ -116,7 +115,6 @@ router.patch('/users/:id/role', (req, res) => {
     return res.status(400).json({ error: 'Cannot change your own role' });
   }
   try {
-    const { updateUser } = require('../utils/users');
     const updated = updateUser(req.params.id, { role });
     res.json({ user: safeUser(updated) });
   } catch (err) {

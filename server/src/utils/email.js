@@ -117,4 +117,9 @@ async function sendVerificationEmail(toUser, verificationUrl) {
   }
 }
 
-module.exports = { sendVerificationEmail, testSmtp };
+function isEmailConfigured() {
+  return !!(process.env.RESEND_API_KEY ||
+    (process.env.SMTP_USER === 'resend' && process.env.SMTP_PASS));
+}
+
+module.exports = { sendVerificationEmail, testSmtp, isEmailConfigured };

@@ -111,7 +111,7 @@ export default function DashboardPage({ state }: Props) {
       <div style={{
         display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
         background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)', padding: '0.65rem 1rem', marginBottom: '1rem',
+        borderRadius: 'var(--radius-md)', padding: '0.65rem 1rem', marginBottom: '1rem',
       }}>
         <Download size={14} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
         <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>
