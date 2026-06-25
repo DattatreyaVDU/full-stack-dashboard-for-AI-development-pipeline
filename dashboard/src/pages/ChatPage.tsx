@@ -476,8 +476,9 @@ export default function ChatPage({ builds }: Props) {
         {/* No session / landing screen */}
         {!chatStarted ? (
           <div style={{
+            flex: 1, overflowY: 'auto', minHeight: 0,
             display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', height: '100%', padding: '2rem', gap: '2rem',
+            justifyContent: 'center', padding: '2rem', gap: '2rem',
           }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{
