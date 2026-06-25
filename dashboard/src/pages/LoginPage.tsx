@@ -54,11 +54,15 @@ export default function LoginPage() {
       {/* ── Left panel ── */}
       <div style={{
         flex: '0 0 420px', display: 'none',
-        background: 'linear-gradient(160deg, #0d1117 0%, #0d2233 50%, #0a1929 100%)',
-        padding: '3rem',
+        background: 'linear-gradient(160deg, #0d0f1f 0%, #0a1f35 55%, #071628 100%)',
+        padding: '2.75rem',
         flexDirection: 'column', justifyContent: 'space-between',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
+        borderRight: '1px solid rgba(255,255,255,0.05)',
+        position: 'relative', overflow: 'hidden',
       }} className="auth-left-panel">
+        {/* Decorative blobs */}
+        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, rgba(45,212,191,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: 80, left: -80, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, rgba(96,165,250,0.07) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

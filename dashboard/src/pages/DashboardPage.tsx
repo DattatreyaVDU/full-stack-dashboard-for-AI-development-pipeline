@@ -110,12 +110,18 @@ export default function DashboardPage({ state }: Props) {
 
       {/* ── Download bar ── */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+        display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap',
         background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)', padding: '0.65rem 1rem', marginBottom: '1rem',
+        borderRadius: 'var(--radius-md)', padding: '0.625rem 1rem', marginBottom: '1rem',
       }}>
-        <Download size={14} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
-        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: '7px',
+          background: 'rgba(96,165,250,0.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <Download size={14} style={{ color: 'var(--accent-blue)' }} />
+        </div>
+        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>
           Download Project
         </span>
 
@@ -124,9 +130,9 @@ export default function DashboardPage({ state }: Props) {
           onChange={e => setSelected(e.target.value)}
           style={{
             flex: 1, minWidth: '180px', maxWidth: '340px',
-            padding: '0.35rem 0.6rem', borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border)', background: 'var(--bg-input)',
-            color: 'var(--text-primary)', fontSize: '0.8rem', fontFamily: 'var(--font-mono)',
+            padding: '0.3rem 0.6rem', borderRadius: 'var(--radius-sm)',
+            border: '1.5px solid var(--border)', background: 'var(--bg-input)',
+            color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)',
           }}
         >
           {diskProjects.length === 0
@@ -143,11 +149,7 @@ export default function DashboardPage({ state }: Props) {
           title="Refresh project list"
           onClick={fetchProjects}
           disabled={loadingProjects}
-          style={{
-            display: 'flex', alignItems: 'center', padding: '0.35rem',
-            borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
-            background: 'var(--bg-input)', color: 'var(--text-secondary)', cursor: 'pointer',
-          }}
+          className="btn btn-ghost btn-sm btn-icon"
         >
           <RefreshCw size={13} style={{ animation: loadingProjects ? 'spin 0.8s linear infinite' : 'none' }} />
         </button>
@@ -155,17 +157,10 @@ export default function DashboardPage({ state }: Props) {
         <button
           onClick={() => downloadProject(selectedProject, setDlStatus)}
           disabled={!selectedProject || dlStatus === 'downloading'}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '0.4rem',
-            padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: 'none',
-            cursor: (!selectedProject || dlStatus === 'downloading') ? 'not-allowed' : 'pointer',
-            background: dlStatus === 'done' ? 'var(--accent-teal)' : 'var(--accent-blue)',
-            color: '#fff', fontSize: '0.8125rem', fontWeight: 600,
-            opacity: (!selectedProject || dlStatus === 'downloading') ? 0.5 : 1,
-            flexShrink: 0,
-          }}
+          className={`btn btn-sm ${dlStatus === 'done' ? 'btn-primary' : 'btn-blue'}`}
+          style={{ flexShrink: 0 }}
         >
-          <Download size={13} />
+          <Download size={12} />
           {dlStatus === 'downloading' ? 'Downloading…' : dlStatus === 'done' ? 'Downloaded ✓' : 'Download .zip'}
         </button>
       </div>
@@ -284,26 +279,33 @@ export default function DashboardPage({ state }: Props) {
         </div>
 
         {diskProjects.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(256px, 1fr))', gap: '0.75rem' }}>
             {diskProjects.map(p => {
               const tc = typeColor(p.type);
               const builds_n = buildsByProject[p.name] || 0;
               return (
                 <div key={p.name} style={{
-                  padding: '0.875rem 1rem',
-                  background: 'var(--bg-base)',
+                  padding: '1rem',
+                  background: 'var(--bg-surface)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
                   display: 'flex', flexDirection: 'column', gap: '0.5rem',
-                }}>
+                  transition: 'border-color var(--transition), box-shadow var(--transition)',
+                }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-bright)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)'; }}
+                >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
+                      <div style={{
+                        fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)',
+                        fontFamily: 'var(--font-mono)', wordBreak: 'break-all', lineHeight: 1.4,
+                      }}>
                         {p.name}
                       </div>
                     </div>
                     <span style={{
-                      fontSize: '0.62rem', fontWeight: 700, padding: '0.15rem 0.5rem',
+                      fontSize: '0.6rem', fontWeight: 700, padding: '0.175rem 0.5rem',
                       borderRadius: '999px', background: tc.bg, border: `1px solid ${tc.border}`,
                       color: tc.text, flexShrink: 0, whiteSpace: 'nowrap',
                     }}>
@@ -311,52 +313,48 @@ export default function DashboardPage({ state }: Props) {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.73rem', color: 'var(--text-muted)' }}>
-                    <span><strong style={{ color: 'var(--text-secondary)' }}>{p.fileCount}</strong> files</span>
+                  <div style={{ display: 'flex', gap: '0.875rem', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    <span><strong style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{p.fileCount}</strong> files</span>
                     <span><strong style={{ color: 'var(--text-secondary)' }}>{p.totalSizeFmt}</strong></span>
                     {builds_n > 0 && (
-                      <span><strong style={{ color: 'var(--accent-teal)' }}>{builds_n}</strong> builds</span>
+                      <span style={{ color: 'var(--accent-teal)' }}>
+                        <strong>{builds_n}</strong> builds
+                      </span>
                     )}
                   </div>
 
                   {p.lastModified && (
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Last modified: {timeAgo(p.lastModified)}
+                    <div style={{ fontSize: '0.69rem', color: 'var(--text-muted)' }}>
+                      Modified {timeAgo(p.lastModified)}
                     </div>
                   )}
 
                   {p.topFiles.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.125rem' }}>
-                      {p.topFiles.slice(0, 5).map(f => (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                      {p.topFiles.slice(0, 4).map(f => (
                         <span key={f} style={{
-                          fontSize: '0.65rem', padding: '0.1rem 0.4rem',
-                          background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                          fontSize: '0.63rem', padding: '0.1rem 0.4rem',
+                          background: 'var(--bg-card)', border: '1px solid var(--border)',
                           borderRadius: '4px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
                         }}>
                           {f}
                         </span>
                       ))}
-                      {p.topFiles.length > 5 && (
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                          +{p.topFiles.length - 5} more
+                      {p.topFiles.length > 4 && (
+                        <span style={{ fontSize: '0.63rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                          +{p.topFiles.length - 4}
                         </span>
                       )}
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
-                    <button
-                      onClick={() => { setSelected(p.name); downloadProject(p.name, setDlStatus); }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '0.3rem',
-                        padding: '0.3rem 0.6rem', borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border)', background: 'var(--bg-surface)',
-                        color: 'var(--text-secondary)', fontSize: '0.72rem', cursor: 'pointer',
-                      }}
-                    >
-                      <Download size={10} /> Download
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => { setSelected(p.name); downloadProject(p.name, setDlStatus); }}
+                    className="btn btn-ghost btn-sm"
+                    style={{ marginTop: '0.25rem', fontSize: '0.75rem', gap: '0.35rem', alignSelf: 'flex-start' }}
+                  >
+                    <Download size={11} /> Download .zip
+                  </button>
                 </div>
               );
             })}
