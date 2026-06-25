@@ -27,6 +27,7 @@ interface ChatSession {
   title:     string;
   createdAt: string;
   updatedAt: string;
+  pipeline?: 'web' | 'webapp';   // pipeline that owns this session
 }
 
 interface Props {
@@ -51,8 +52,13 @@ const EXAMPLES = [
 function msgKey(sessionId: string)  { return `n8n-msgs-${sessionId}`; }
 function buildKey(sessionId: string) { return `n8n-building-${sessionId}`; }
 
-function loadSessions(key: string): ChatSession[] {
-  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+function loadSessions(key: string, pipeline: 'web' | 'webapp'): ChatSession[] {
+  try {
+    const all: ChatSession[] = JSON.parse(localStorage.getItem(key) || '[]');
+    // Strict filter: only return sessions that belong to this pipeline.
+    // Sessions with no pipeline tag are legacy web sessions.
+    return all.filter(s => (s.pipeline ?? 'web') === pipeline);
+  } catch { return []; }
 }
 
 function saveSessions(key: string, sessions: ChatSession[]) {
@@ -76,12 +82,13 @@ function deleteSessionData(sessionId: string) {
   localStorage.removeItem(buildKey(sessionId));
 }
 
-function createSession(): ChatSession {
+function createSession(pipeline: 'web' | 'webapp'): ChatSession {
   return {
     id:        `session-${Date.now()}`,
     title:     'New Project',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    pipeline,
   };
 }
 
@@ -123,9 +130,9 @@ export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
   const apiStatus = isWebapp ? n8nApi.statusMobile  : n8nApi.status;
 
   // Sessions list
-  const [sessions,       setSessions]       = useState<ChatSession[]>(() => loadSessions(SESSIONS_KEY));
+  const [sessions,       setSessions]       = useState<ChatSession[]>(() => loadSessions(SESSIONS_KEY, isWebapp ? 'webapp' : 'web'));
   const [activeSession,  setActiveSession]  = useState<ChatSession | null>(() => {
-    const all     = loadSessions(SESSIONS_KEY);
+    const all     = loadSessions(SESSIONS_KEY, isWebapp ? 'webapp' : 'web');
     const activeId = localStorage.getItem(ACTIVE_SESSION_KEY);
     return all.find(s => s.id === activeId) ?? all[0] ?? null;
   });
@@ -187,7 +194,7 @@ export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
 
   const createAndSwitchSession = useCallback(() => {
     if (completionTimer.current) clearTimeout(completionTimer.current);
-    const s = createSession();
+    const s = createSession(isWebapp ? 'webapp' : 'web');
     setSessions(prev => {
       const next = [s, ...prev];
       saveSessions(SESSIONS_KEY, next);
@@ -342,7 +349,7 @@ export default function ChatPage({ builds, pipelineType = 'web' }: Props) {
     // If no session exists yet, create one
     let session = activeSession;
     if (!session) {
-      session = createSession();
+      session = createSession(isWebapp ? 'webapp' : 'web');
       setSessions(prev => { const next = [session!, ...prev]; saveSessions(SESSIONS_KEY, next); return next; });
       setActiveSession(session);
     }
