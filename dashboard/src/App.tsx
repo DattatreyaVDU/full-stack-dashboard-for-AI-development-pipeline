@@ -99,8 +99,8 @@ function AppInner() {
                   user={user} onLogout={logout}
                 />
                 <Routes>
-                  <Route path="/chat"        element={<ChatPage latestBuild={state.latestBuild} builds={state.builds} />} />
-                  <Route path="/chat-webapp" element={<ChatPage latestBuild={state.latestBuild} builds={state.builds} pipelineType="webapp" />} />
+                  <Route path="/chat"        element={<ChatPage key="web"    latestBuild={state.latestBuild} builds={state.builds} />} />
+                  <Route path="/chat-webapp" element={<ChatPage key="webapp" latestBuild={state.latestBuild} builds={state.builds} pipelineType="webapp" />} />
                   <Route path="/mobile-projects" element={<MobileProjectsPage />} />
                   <Route path="/" element={<DashboardPage state={state} />} />
                   <Route path="/preview" element={<PreviewPage latestBuild={state.latestBuild} builds={state.builds} />} />
