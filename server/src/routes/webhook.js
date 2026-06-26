@@ -196,9 +196,22 @@ async function pushToGitHub(user, build) {
   }
 }
 
+// ─── Webhook secret verification ─────────────────────────────────────────────
+function verifyWebhookSecret(req, res) {
+  const secret = process.env.N8N_WEBHOOK_SECRET;
+  if (!secret) return true; // not configured — allow all (dev mode)
+  const provided = req.headers['x-webhook-secret'] || req.body?.webhookSecret;
+  if (provided !== secret) {
+    res.status(401).json({ success: false, error: 'Invalid webhook secret' });
+    return false;
+  }
+  return true;
+}
+
 // ─── POST /api/webhook/n8n ────────────────────────────────────────────────────
 // Receives build results from n8n and broadcasts them via Socket.IO.
 router.post('/n8n', (req, res) => {
+  if (!verifyWebhookSecret(req, res)) return;
   const io          = req.app.get('io');
   const updateState = req.app.get('updateState');
 
@@ -282,6 +295,7 @@ router.post('/n8n', (req, res) => {
 // ─── POST /api/webhook/wp ─────────────────────────────────────────────────────
 // Receives WordPress pipeline builds separately from web builds.
 router.post('/wp', (req, res) => {
+  if (!verifyWebhookSecret(req, res)) return;
   const io          = req.app.get('io');
   const updateState = req.app.get('updateState');
   const payload     = req.body;

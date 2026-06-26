@@ -10,8 +10,10 @@ const owner = () => process.env.GITHUB_OWNER;
 const repo = () => process.env.GITHUB_REPO;
 const branch = () => process.env.GITHUB_BRANCH || 'main';
 
+const { requireAuth } = require('../middleware/auth');
+
 // POST /api/github/config — set credentials at runtime (no server restart needed)
-router.post('/config', (req, res) => {
+router.post('/config', requireAuth, (req, res) => {
   const { token, owner, repo, branch } = req.body;
   if (token)  process.env.GITHUB_TOKEN  = token;
   if (owner)  process.env.GITHUB_OWNER  = owner;

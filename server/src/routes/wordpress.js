@@ -5,8 +5,8 @@ const path     = require('path');
 const fs       = require('fs');
 const zlib     = require('zlib');
 
-// Root projects folder (same dir n8n WP File Creation writes to)
-const PROJECTS_DIR = path.join(__dirname, '../../../projects');
+// Root projects folder — reads from env var so NAS path works correctly
+const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(__dirname, '../../../projects');
 
 // ─────────────────────────────────────────────────────────────
 // PNG generator — creates a solid-color 120×90 PNG in memory
